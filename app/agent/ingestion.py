@@ -4,13 +4,12 @@ from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
 
 def setup_qdrant_database():
-    # 1. Load the Think Python PDF using LangChain
-    # Assuming this script runs from backend/app/agent/
+    # 1. Load the PDF using LangChain
     pdf_path = "../../../data/thinkpython.pdf" 
     loader = PyPDFLoader(pdf_path)
     documents = loader.load()
 
-    # 2. Use the RecursiveCharacterTextSplitter to break the text into manageable chunks
+    # 2. Break the text into manageable chunks
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=120,
@@ -34,5 +33,5 @@ def setup_qdrant_database():
     return qdrant_db
 
 if __name__ == "__main__":
-    # Run this to test if your ingestion works
+    # Run this to test if ingestion works
     db = setup_qdrant_database()
