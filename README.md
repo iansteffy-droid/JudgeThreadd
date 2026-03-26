@@ -7,6 +7,8 @@ A continuous integration testing tool to evaluate an agent before it reaches pro
 
 An untested RAG system deployed to production can lead to "silent failures" where the AI hallucinates incorrect return policies, breaches brand safety, or provides bad financial advice, which damages user trust and incurs significant liability. 
 
+Well, not on JudgeThreadd's watch. JudgeThreadd and his Council of Judges will execute the law to ensure that your agents are not having faulty logic. 
+
 ## How to use
 
 1. Send your agents data to JudgeThreadd via an HTTP endpoint. 
