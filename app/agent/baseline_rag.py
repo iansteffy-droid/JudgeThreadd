@@ -1,36 +1,42 @@
 import os
-from dotenv import load_dotenv
-from langchain_groq import ChatGroq
-from langchain.prompts import PromptTemplate
-from langchain_core.runnables import RunnablePassthrough
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_qdrant import QdrantVectorStore
+from langchain_huggingface import HuggingFaceEmbeddings
 
-load_dotenv()
+def setup_qdrant_database():
+    # 1. Dynamically build the absolute path to the PDF
+    # This gets the directory where ingestion.py lives (app/agent)
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # This goes up two levels to the root, then into the data folder
+    pdf_path = os.path.join(current_dir, "../../public/test-content/thinkpython.pdf")
+    
+    loader = PyPDFLoader(pdf_path)
+    documents = loader.load()
 
-# Initialize Groq Llama 3
-llm = ChatGroq(
-    api_key=os.environ.get("GROQ_API_KEY"),
-    model="llama-3.1-8b-instant"
-)
+    # 2. Break the text into manageable chunks
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=120,
+        length_function=len,
+        is_separator_regex=False,
+    )
+    chunks = text_splitter.split_documents(documents)
 
-# Set up the Qdrant retriever
-retriever = qdrant_db.as_retriever()
+    # 3. Initialize the free-tier embedding model
+    embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
 
-# Create the prompt template
-template = """Answer the question based ONLY on the following context:
-{context}
+    # 4. Save the chunks into a local, in-memory Qdrant vector database
+    qdrant_db = QdrantVectorStore.from_documents(
+        chunks,
+        embeddings,
+        location=":memory:",
+        collection_name="portfolio_docs"
+    )
+    
+    print(f"Successfully processed and stored {len(chunks)} chunks in Qdrant!")
+    return qdrant_db
 
-Question: {question}
-"""
-prompt = PromptTemplate.from_template(template)
-
-# Build the baseline RAG agent using LCEL
-rag_chain = (
-    {"context": retriever, "question": RunnablePassthrough()}
-
-| prompt
-| llm
-)
-
-# Test it
-response = rag_chain.invoke("What is the main topic of the documents?")
-print(response.content)
+if __name__ == "__main__":
+    # Run this to test if ingestion works
+    db = setup_qdrant_database()
