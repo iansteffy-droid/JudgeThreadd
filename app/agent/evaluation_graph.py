@@ -5,10 +5,10 @@ from typing import Annotated, List
 from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, START, END
-from langchain_core.prompts import PromptTemplate
 
 load_dotenv()
 
@@ -18,7 +18,6 @@ class EvaluationScore(BaseModel):
     rationale: str = Field(description="Detailed explanation. CRITICAL: Do not use apostrophes (') or single quotes anywhere in this text to prevent JSON syntax errors.")
 
 # --- STATE AND REDUCERS ---
-# Memory of our graph. 
 class EvalState(AgentState):
     scores: Annotated[List[dict], operator.add] 
 
@@ -112,6 +111,19 @@ def aggregator_node(state: EvalState):
         print(f"Rationale: {score['rationale']}\n")
     return state
 
+# --- HUMAN IN THE LOOP ROUTING ---
+def human_review_node(state: EvalState):
+    print("\n[PAUSED] A Judge scored a 3 or lower. Waiting for Human Override...")
+    # The graph freezes here until the human intervenes
+    return state
+
+def route_after_aggregation(state: EvalState):
+    # Check if any judge gave a failing score
+    for score in state['scores']:
+        if int(score['score']) <= 3:
+            return "human_review"
+    return "end"
+
 # --- BUILD THE GRAPH ---
 workflow = StateGraph(EvalState)
 
@@ -128,11 +140,28 @@ workflow.add_edge(START, "tone")
 workflow.add_edge(START, "psi_division")
 workflow.add_edge(START, "tek_division")
 
-# Fan-in: Wait for all three to finish, then send them to the aggregator
-workflow.add_edge(["relevance", "hallucination", "tone", "psi_division", "tek_division"], "aggregator")
-workflow.add_edge("aggregator", END)
+workflow.add_node("human_review", human_review_node)
 
-eval_app = workflow.compile()
+# Fan-in: Wait for all judges to finish, then send them to the aggregator
+workflow.add_edge(["relevance", "hallucination", "psi_division", "tek_division"], "aggregator")
+
+workflow.add_conditional_edges(
+    "aggregator", 
+    route_after_aggregation, 
+    {
+        "human_review": "human_review", 
+        "end": END
+    }
+)
+
+workflow.add_edge("human_review", END)
+
+memory = MemorySaver()
+
+eval_app = workflow.compile(
+    checkpointer=memory, 
+    interrupt_before=["human_review"]
+)
 
 if __name__ == "__main__":
     # Test the graph with a deliberately BAD answer to see if the judges catch it
