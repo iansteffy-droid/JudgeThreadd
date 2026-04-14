@@ -5,6 +5,7 @@ from typing import Annotated, List
 from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from langchain_core.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, START, END
 from langchain_core.prompts import PromptTemplate
@@ -29,81 +30,80 @@ llm = ChatGroq(
 )
 structured_llm = llm.with_structured_output(EvaluationScore)
 
-# TODO: class AgentState(TypedDict) has a similar structure. Could we use this?
-STANDARD_INPUTS = """
-Question: {question}
-Context: {context}
-Answer: {answer}
-"""
+# --- PROMPT TEMPLATES ---
+relevance_template = PromptTemplate.from_template(
+    "You are Judge Relevance. Evaluate how well the answer addresses the question based ONLY on the context.\n"
+    "Question: {question}\n"
+    "Context: {context}\n"
+    "Answer: {answer}\n"
+    "Output a score from 1-5 where 5 is perfectly relevant."
+)
 
-# --- THE COUNCIL JUDGES ---
-# TODO: Judge Relevance uses "score": int(output_dict["score"]) with int to make sure the score is an int
-# JUDGE_RELEVANCE_ROLE = """You are a Relevance Judge. Evaluate how well the answer addresses the question based ONLY on the context."""
-# RELEVANCE_RUBRIC = """Assign a score from 1 to 5 where:
-# 5 = Output perfectly addresses the input with all content being relevant.
-# 3 = Output partially addresses the input with some irrelevant content.
-# 1 = Output does not address the input at all.
+hallucination_template = PromptTemplate.from_template(
+    "You are a Judge of agent Hallucinations. \n"
+    "You read and understand everything in the context and can always tell if the answer contains details that \n"
+    "are not present in the context. \n\n"
+    "Question: {question}\n"
+    "Context: {context}\n"
+    "Answer: {answer}\n"
+    "Score 5 if perfectly grounded (no hallucinations), 1 if completely hallucinated."
+)
 
-# Provide actionable remediation steps if the score is less than 5."""
-# relevance_template = f"""
-# {JUDGE_RELEVANCE_ROLE}
+psi_division_template = PromptTemplate.from_template(
+    "You are Judge Psi Division. Evaluate if the answer correctly addresses the underlying goal or if it missed the point.\n"
+    "Identify if the agent should be breaking down a complex question into easier-to-answer chunks and/or discover where and why the agent\n"
+    "misunderstood the goal of the question. \n"
+    "Question Intent: {question}\n"
+    "Answer: {answer}\n"
+    "Score 5 if perfectly aligned, 1 if misinterpreted."
+)
 
-# {RELEVANCE_RUBRIC}
+tek_division_template = PromptTemplate.from_template(
+    "You are Judge Tek Division. Analyze the technical accuracy of the answer.\n"
+    "Specifically, check if any Python code, algorithms, or technical definitions provided in the Answer are factually correct according to modern software engineering standards.\n"
+    "Question: {question}\n"
+    "Answer: {answer}\n"
+    "Score 5 if technically flawless, 1 if code or logic is flawed."
+)
 
-# {STANDARD_INPUTS}
-# """
-# relevance_prompt = PromptTemplate.from_template(relevance_template)
-
-# TODO: Question: Would it be more efficient to have every judge have another LLM which is grading the judges and making sure that they are not messing up?
-
+# --- EVALUATION NODES ---
 def judge_relevance(state: EvalState):
-    prompt = f"""You are Judge Relevance. Evaluate how well the answer addresses the question based ONLY on the context.
-    Question: {state['question']}
-    Context: {state['context']}
-    Answer: {state['answer']}
-    Output a score from 1-5 where 5 is perfectly relevant."""
-    result = structured_llm.invoke(prompt)
-    
-    # We manually force the correct judge_name into the state dictionary here
-    # to guarantee consistency for the aggregator, regardless of what the LLM named itself.
+    prompt_val = relevance_template.invoke({
+        "question": state['question'], 
+        "context": state['context'], 
+        "answer": state['answer']
+    })
+    result = structured_llm.invoke(prompt_val)
     output_dict = result.model_dump()
-    return {"scores": [{"judge_name": "Judge Relevance", "score": int(output_dict["score"]), "rationale": output_dict["rationale"]}]}
+    return {"scores": [{"judge_name": "Judge Relevance", "score": output_dict["score"], "rationale": output_dict["rationale"]}]}
 
 def judge_hallucination(state: EvalState):
-    prompt = f"""You are a Judge of agent Hallucinations. 
-    You read and understand everything in the context and can always tell if the answer contains details that 
-    are not present in the context. 
-
-    Question: {state['question']}
-    Context: {state['context']}
-    Answer: {state['answer']}
-    Score 5 if perfectly grounded (no hallucinations), 1 if completely hallucinated."""
-    result = structured_llm.invoke(prompt)
+    prompt_val = hallucination_template.invoke({
+        "question": state['question'], 
+        "context": state['context'], 
+        "answer": state['answer']
+    })
+    result = structured_llm.invoke(prompt_val)
     output_dict = result.model_dump()
-    return {"scores": [{"judge_name": "Judge Hallucination", "score": int(output_dict["score"]), "rationale": output_dict["rationale"]}]}
+    return {"scores": [{"judge_name": "Judge Hallucination", "score": output_dict["score"], "rationale": output_dict["rationale"]}]}
 
-# Judge Goal
 def judge_psi_division(state: EvalState):
-    prompt = f"""You are Judge Psi Division. Evaluate if the answer correctly addresses the underlying goal or if it missed the point.
-    Identify if the agent should be breaking down a complex question into easier-to-answer chunks and/or discover where and why the agent
-    misunderstood the goal of the question. 
-    Question Intent: {state['question']}
-    Answer: {state['answer']}
-    Score 5 if perfectly aligned, 1 if misinterpreted."""
-    result = structured_llm.invoke(prompt)
+    prompt_val = psi_division_template.invoke({
+        "question": state['question'], 
+        "answer": state['answer']
+    })
+    result = structured_llm.invoke(prompt_val)
     output_dict = result.model_dump()
-    return {"scores": [{"judge_name": "Judge Psi Division", "score": int(output_dict["score"]), "rationale": output_dict["rationale"]}]}
+    return {"scores": [{"judge_name": "Judge Psi Division", "score": output_dict["score"], "rationale": output_dict["rationale"]}]}
 
 def judge_tek_division(state: EvalState):
-    prompt = f"""You are Judge Tek Division. Analyze the technical accuracy of the answer.
-    Specifically, check if any Python code, algorithms, or technical definitions provided in the Answer are factually correct according to modern software engineering standards.
-    Question: {state['question']}
-    Answer: {state['answer']}
-    Score 5 if technically flawless, 1 if code or logic is flawed."""
-    result = structured_llm.invoke(prompt)
+    prompt_val = tek_division_template.invoke({
+        "question": state['question'], 
+        "answer": state['answer']
+    })
+    result = structured_llm.invoke(prompt_val)
     output_dict = result.model_dump()
-    return {"scores": [{"judge_name": "Judge Tek Division", "score": int(output_dict["score"]), "rationale": output_dict["rationale"]}]}
-
+    return {"scores": [{"judge_name": "Judge Tek Division", "score": output_dict["score"], "rationale": output_dict["rationale"]}]}
 # --- CONCEPT: FAN-IN AGGREGATOR ---
 def aggregator_node(state: EvalState):
     print("\n--- FINAL EVALUATION VERDICT ---")
