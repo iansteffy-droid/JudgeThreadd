@@ -1,5 +1,6 @@
 import os
 import operator
+from baseline_rag import AgentState
 from typing import Annotated, List
 from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
@@ -8,20 +9,16 @@ from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, START, END
 from langchain_core.prompts import PromptTemplate
 
-# delete me
 load_dotenv()
 
 class EvaluationScore(BaseModel):
     name: str = Field(description="The exact name of the judge providing this score.")
-    score: str = Field(description="A score from 1 to 5. Output as a string (e.g., '5').") 
+    score: int = Field(description="A score from 1 to 5.", ge=1, le=5) 
     rationale: str = Field(description="Detailed explanation. CRITICAL: Do not use apostrophes (') or single quotes anywhere in this text to prevent JSON syntax errors.")
 
 # --- STATE AND REDUCERS ---
 # Memory of our graph. 
-class EvalState(TypedDict):
-    question: str
-    context: str
-    answer: str
+class EvalState(AgentState):
     scores: Annotated[List[dict], operator.add] 
 
 # Initialize the Groq LLM and force it to use our structured output format
@@ -85,15 +82,6 @@ def judge_hallucination(state: EvalState):
     output_dict = result.model_dump()
     return {"scores": [{"judge_name": "Judge Hallucination", "score": int(output_dict["score"]), "rationale": output_dict["rationale"]}]}
 
-# TODO: Judge Tone is Deprecated. Analyzing tone does not help an agentic workflow be better.
-def judge_tone(state: EvalState):
-    prompt = f"""You are Judge Tone. Evaluate if the answer is polite, professional, and helpful.
-    Answer: {state['answer']}
-    Output a score from 1-5 where 5 is highly professional."""
-    result = structured_llm.invoke(prompt)
-    output_dict = result.model_dump()
-    return {"scores": [{"judge_name": "Judge Tone", "score": int(output_dict["score"]), "rationale": output_dict["rationale"]}]}
-
 # Judge Goal
 def judge_psi_division(state: EvalState):
     prompt = f"""You are Judge Psi Division. Evaluate if the answer correctly addresses the underlying goal or if it missed the point.
@@ -107,11 +95,11 @@ def judge_psi_division(state: EvalState):
     return {"scores": [{"judge_name": "Judge Psi Division", "score": int(output_dict["score"]), "rationale": output_dict["rationale"]}]}
 
 def judge_tek_division(state: EvalState):
-    ## TODO: Structural logic and technical accuracy of 'what'? This prompr is vage.
-    prompt = f"""You are Judge Tek Division. Analyze the structural logic and technical accuracy.
+    prompt = f"""You are Judge Tek Division. Analyze the technical accuracy of the answer.
+    Specifically, check if any Python code, algorithms, or technical definitions provided in the Answer are factually correct according to modern software engineering standards.
     Question: {state['question']}
     Answer: {state['answer']}
-    Score 5 if logic is flawless, 1 if flawed."""
+    Score 5 if technically flawless, 1 if code or logic is flawed."""
     result = structured_llm.invoke(prompt)
     output_dict = result.model_dump()
     return {"scores": [{"judge_name": "Judge Tek Division", "score": int(output_dict["score"]), "rationale": output_dict["rationale"]}]}
@@ -129,7 +117,6 @@ workflow = StateGraph(EvalState)
 
 workflow.add_node("relevance", judge_relevance)
 workflow.add_node("hallucination", judge_hallucination)
-workflow.add_node("tone", judge_tone)
 workflow.add_node("psi_division", judge_psi_division)
 workflow.add_node("tek_division", judge_tek_division)
 workflow.add_node("aggregator", aggregator_node)
