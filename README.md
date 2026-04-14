@@ -1,5 +1,6 @@
 # JudgeThreadd
-### Catch an unreliable AI before it goes live.
+## An LLM Evaluation Tool
+### Catch an unreliable AI before it goes live by allowing Judge Threadd to make s.
 
 LLM-as-a-Judge
 
