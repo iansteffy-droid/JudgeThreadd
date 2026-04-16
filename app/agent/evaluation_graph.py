@@ -8,6 +8,8 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.prompts import PromptTemplate
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.postgres import PostgresSaver
+from psycopg_pool import ConnectionPool
 
 load_dotenv()
 
@@ -179,7 +181,16 @@ workflow.add_conditional_edges(
 
 workflow.add_edge("human_review", END)
 
-memory = MemorySaver()
+DB_URI = os.environ.get("SUPABASE_DB_URI")
+
+connection_pool = ConnectionPool(
+    conninfo=DB_URI,
+    max_size=20,
+)
+
+memory = PostgresSaver(connection_pool)
+
+memory.setup()
 
 eval_app = workflow.compile(
     checkpointer=memory, 

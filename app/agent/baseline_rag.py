@@ -18,43 +18,41 @@ from langchain_huggingface import HuggingFaceEmbeddings
 # Load environment variables (GROQ_API_KEY, etc.)
 load_dotenv()
 
-# ==========================================
+# ==========================================\
 # 1. DATABASE SETUP (The Foundation)
-# ==========================================
+# ==========================================\
+
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+
+qdrant_db = QdrantVectorStore.from_existing_collection(
+    embedding=embeddings,
+    collection_name="portfolio_docs",
+    url=os.environ.get("QDRANT_URL"),
+    api_key=os.environ.get("QDRANT_API_KEY"),
+)
+
+retriever = qdrant_db.as_retriever(search_kwargs={"k": 2})
+
 def setup_qdrant_database():
-    print("🏗️ Building Sector Database...")
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    pdf_path = os.path.join(current_dir, "../../public/test-content/thinkpython.pdf")
+    print("🏗️ Building Sector Database and uploading to Qdrant Cloud...")
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    pdf_path = os.path.join(project_root, "public", "test-content", "thinkpython.pdf")
     
     loader = PyPDFLoader(pdf_path)
     documents = loader.load()
 
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,
-        chunk_overlap=120,
-        length_function=len,
-        is_separator_regex=False,
-    )
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
     chunks = text_splitter.split_documents(documents)
     
-    embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
-
-    qdrant_db = QdrantVectorStore.from_documents(
-    chunks,
-    embeddings,
-    url=os.environ.get("QDRANT_URL"),           # Added URL
-    api_key=os.environ.get("QDRANT_API_KEY"),   # Added API Key
-    collection_name="portfolio_docs",
-    force_recreate=True # Optional: use True while testing to overwrite old data
-)
-    print(f"✅ Database Online: Processed {len(chunks)} chunks from 'Think Python'.")
-    return qdrant_db
-
-# Initialize the database globally so it's ready for incoming queries
-db = setup_qdrant_database()
-# Set up the retriever to fetch the top 3 most relevant chunks
-retriever = db.as_retriever(search_kwargs={"k": 3}) 
-
+    QdrantVectorStore.from_documents(
+        chunks,
+        embeddings,
+        url=os.environ.get("QDRANT_URL"),
+        api_key=os.environ.get("QDRANT_API_KEY"),
+        collection_name="portfolio_docs",
+        force_recreate=True 
+    )
+    print("Upload complete!")
 
 # ==========================================
 # 2. STATE & LLM CONFIGURATION
