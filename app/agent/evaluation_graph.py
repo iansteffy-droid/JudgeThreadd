@@ -1,6 +1,6 @@
 import os
 import operator
-from baseline_rag import AgentState
+from app.agent.baseline_rag import AgentState
 from typing import Annotated, List
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
