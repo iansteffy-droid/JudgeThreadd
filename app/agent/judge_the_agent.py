@@ -90,10 +90,10 @@ def run_automated_evaluations():
             "scores": [] 
         }
         
-        # Run the Evaluation Graph
-        council_result = council_of_judges.invoke(eval_state)
+        config = {"configurable": {"thread_id": f"case_file_{index}"}}
         
-        # Save the structured results to our Markdown report
+        council_result = council_of_judges.invoke(eval_state, config=config)
+        
         append_to_markdown_report(index, question, agent_result["answer"], council_result["scores"])
         print(f"💾 Case #{index} archived to evaluation_report.md")
 

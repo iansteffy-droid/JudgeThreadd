@@ -40,11 +40,13 @@ def setup_qdrant_database():
     embeddings = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en-v1.5")
 
     qdrant_db = QdrantVectorStore.from_documents(
-        chunks,
-        embeddings,
-        location=":memory:",
-        collection_name="portfolio_docs"
-    )
+    chunks,
+    embeddings,
+    url=os.environ.get("QDRANT_URL"),           # Added URL
+    api_key=os.environ.get("QDRANT_API_KEY"),   # Added API Key
+    collection_name="portfolio_docs",
+    force_recreate=True # Optional: use True while testing to overwrite old data
+)
     print(f"✅ Database Online: Processed {len(chunks)} chunks from 'Think Python'.")
     return qdrant_db
 

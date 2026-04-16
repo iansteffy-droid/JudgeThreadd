@@ -2,7 +2,6 @@ import os
 import operator
 from baseline_rag import AgentState
 from typing import Annotated, List
-from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from langgraph.checkpoint.memory import MemorySaver
@@ -103,22 +102,47 @@ def judge_tek_division(state: EvalState):
     result = structured_llm.invoke(prompt_val)
     output_dict = result.model_dump()
     return {"scores": [{"judge_name": "Judge Tek Division", "score": output_dict["score"], "rationale": output_dict["rationale"]}]}
-# --- CONCEPT: FAN-IN AGGREGATOR ---
+# --- FAN-IN AGGREGATOR ---
 def aggregator_node(state: EvalState):
     print("\n--- FINAL EVALUATION VERDICT ---")
+    
+    total_score = 0
+    num_judges = len(state['scores'])
+    
     for score in state['scores']:
         print(f"[{score['judge_name']}] Score: {score['score']}/5")
         print(f"Rationale: {score['rationale']}\n")
-    return state
+        total_score += int(score['score'])
+        
+    if num_judges > 0:
+        avg_score = total_score / num_judges
+        
+        if avg_score >= 3.5:
+            rationale = f"Approved. The Academy Instructor meets standards with an average score of {avg_score:.2f}."
+            final_score = int(round(avg_score)) 
+        else:
+            rationale = f"Denied. The Academy Instructor fell below the 3.5 threshold with an average score of {avg_score:.2f}. Human intervention required."
+            final_score = int(round(avg_score))
+
+        chief_judge_verdict = {
+            "judge_name": "CHIEF JUDGE",
+            "score": final_score, 
+            "rationale": rationale
+        }
+        
+        print(f"[CHIEF JUDGE] Score: {avg_score:.2f}/5")
+        print(f"Rationale: {rationale}\n")
+        
+        return {"scores": [chief_judge_verdict]}
+        
+    return {"scores": []}
 
 # --- HUMAN IN THE LOOP ROUTING ---
 def human_review_node(state: EvalState):
     print("\n[PAUSED] A Judge scored a 3 or lower. Waiting for Human Override...")
-    # The graph freezes here until the human intervenes
     return state
 
 def route_after_aggregation(state: EvalState):
-    # Check if any judge gave a failing score
     for score in state['scores']:
         if int(score['score']) <= 3:
             return "human_review"
@@ -136,7 +160,6 @@ workflow.add_node("aggregator", aggregator_node)
 # Fan-out: From the START, trigger all three judges at the exact same time
 workflow.add_edge(START, "relevance")
 workflow.add_edge(START, "hallucination")
-workflow.add_edge(START, "tone")
 workflow.add_edge(START, "psi_division")
 workflow.add_edge(START, "tek_division")
 
