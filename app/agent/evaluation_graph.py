@@ -22,7 +22,6 @@ class EvaluationScore(BaseModel):
 class EvalState(AgentState):
     scores: Annotated[List[dict], operator.add] 
 
-# Initialize the Groq LLM and force it to use our structured output format
 llm = ChatGroq(
     api_key=os.environ.get("GROQ_API_KEY"), 
     model="llama-3.3-70b-versatile",
@@ -190,7 +189,7 @@ connection_pool = ConnectionPool(
 
 memory = PostgresSaver(connection_pool)
 
-memory.setup()
+# NOTE: memory.setup() HAS BEEN REMOVED FROM HERE!
 
 eval_app = workflow.compile(
     checkpointer=memory, 
