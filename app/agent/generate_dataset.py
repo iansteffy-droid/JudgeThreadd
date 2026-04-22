@@ -22,15 +22,13 @@ def create_golden_dataset():
     combined_text = "\n\n".join([doc.page_content for doc in sampled_docs])
 
     print("3. Initializing Gemini 2.5 Flash...")
-    # Set up the LLM. We use temperature=0.1 to make it highly deterministic and focused.
     llm = ChatGoogleGenerativeAI(
         model="gemini-2.5-flash",
         api_key=os.environ.get("GOOGLE_API_KEY"),
-        temperature=0.1 
+        temperature=0.1 #highly deterministic and focused
     )
 
     print("4. Prompting Gemini to generate 20 test cases...")
-    # We explicitly ask for a JSON array of question-answer-context triplets
     prompt = PromptTemplate.from_template("""
     You are an expert AI evaluator. Read the following context from a Python programming manual.
     Generate exactly 20 complex test cases based on this context.

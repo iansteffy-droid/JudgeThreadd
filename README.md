@@ -1,18 +1,38 @@
-# JudgeThreadd
-## An LLM Evaluation Tool
-### Catch an unreliable AI before it goes live by allowing Judge Threadd to make s.
+# ⚖️ JudgeThreadd: Agentic Evaluation Pipeline
 
-LLM-as-a-Judge
+**An LLM-as-a-Judge Observability Tool to catch unreliable AI before it goes live.**
 
-A continuous integration testing tool to evaluate an agent before it reaches production.  
+An untested RAG system deployed to production can lead to "silent failures" where the AI hallucinates incorrect return policies, breaches brand safety, or provides bad financial advice, damaging user trust and incurring significant liability. 
 
-An untested RAG system deployed to production can lead to "silent failures" where the AI hallucinates incorrect return policies, breaches brand safety, or provides bad financial advice, which damages user trust and incurs significant liability. 
+Well, not on JudgeThreadd's watch. 
 
-Well, not on JudgeThreadd's watch. JudgeThreadd and his Council of Judges will execute the law to ensure that your agents are not having faulty logic. 
+JudgeThreadd is a continuous integration testing tool built to evaluate LLM agents before they reach production. It utilizes a highly parallelized "Council of Judges" to execute the law, ensuring your generative applications are safe, grounded, and technically accurate.
 
-## How to use
+## 🛠️ The Tech Stack
+* **Orchestration:** LangGraph (Parallel DAG execution)
+* **Backend:** FastAPI (Python, Server-Sent Events/SSE)
+* **Frontend:** Vue.js 3 (Tailwind CSS, Vite, Real-time telemetry)
+* **Episodic Memory:** Supabase (PostgreSQL with `PostgresSaver`)
+* **Semantic Search:** Qdrant Cloud (Vector Database)
+* **LLMs:** Groq (Llama 3 70B for the Judges, Llama 3 8B for the baseline agent)
 
-1. Send your agents data to JudgeThreadd via an HTTP endpoint. 
-2. Send a JSON payload containing the original user query, the exact context documents your agent retrieved, and the final answer your agent generated. 
+## 🧠 System Architecture
 
-The JudgeThreadd pipeline ingests that payload, runs the parallel judges from our Council of Judges, and streams the evaluation & scores back to the JudgeThreadd UI dashboard.
+JudgeThreadd accepts a payload (Question, Retrieved Context, Generated Answer) and simultaneously fans out to specialized AI Judges. It streams real-time execution telemetry to the frontend, aggregates the scores, and forces a Human-in-the-Loop review if the AI drifts below acceptable thresholds.
+
+```mermaid
+graph TD;
+    START((START)) --> Dispatcher[Street Judge Orchestrator];
+    Dispatcher --> R[Judge Relevance];
+    Dispatcher --> H[Judge Hallucination];
+    Dispatcher --> P[Judge Psi Division];
+    Dispatcher --> T[Judge Tek Division];
+    
+    R --> Agg[Chief Judge Aggregator];
+    H --> Agg;
+    P --> Agg;
+    T --> Agg;
+    
+    Agg -->|Score >= 3.5| END((END));
+    Agg -->|Score < 3.5| HITL[Human-In-The-Loop Review];
+    HITL --> END;

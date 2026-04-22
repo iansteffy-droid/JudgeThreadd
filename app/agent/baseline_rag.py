@@ -3,19 +3,16 @@ from typing import TypedDict
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-# LangChain & LangGraph Imports
 from langchain_groq import ChatGroq
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langgraph.graph import StateGraph, START, END
 
-# Document & Vector Store Imports
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
 
-# Load environment variables (GROQ_API_KEY, etc.)
 load_dotenv()
 
 # ==========================================\
@@ -104,7 +101,6 @@ def street_judge(state: AgentState):
 def retrieve_docs(state: AgentState):
     print("📚 [Tek Division] Retrieving 'Think Python' documents from Qdrant...")
     docs = retriever.invoke(state["question"])
-    # Combine the text from the retrieved chunks
     context_str = "\n\n".join([doc.page_content for doc in docs])
     return {"context": context_str}
 
@@ -166,14 +162,11 @@ workflow.add_conditional_edges(
     }
 )
 
-# If approved, retrieve docs, then generate the answer, then end
 workflow.add_edge("retrieve_docs", "generate_answer")
 workflow.add_edge("generate_answer", END)
 
-# Compile the final application
 main_app = workflow.compile()
 
-# TODO: Replace for production. 
 # ==========================================
 # 5. EXECUTION & TESTING
 # ==========================================
