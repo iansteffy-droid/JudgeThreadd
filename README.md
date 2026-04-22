@@ -1,3 +1,8 @@
+<p align="center">
+    <img width="350" height="350" alt="JudgeThreadd" src="https://github.com/user-attachments/assets/dbe1fb0b-d289-430b-9273-f2ee6069a1bc" />
+</p>
+
+
 # ⚖️ JudgeThreadd: Agentic Evaluation Pipeline
 
 **An LLM-as-a-Judge Observability Tool to catch unreliable AI before it goes live.**
