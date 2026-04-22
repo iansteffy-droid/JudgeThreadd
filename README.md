@@ -36,3 +36,27 @@ graph TD;
     Agg -->|Score >= 3.5| END((END));
     Agg -->|Score < 3.5| HITL[Human-In-The-Loop Review];
     HITL --> END;
+
+## 🧪 How to Use This to Improve Your Agents
+
+While the Grand Hall UI is excellent for visually debugging a single prompt in real-time, the true power of JudgeThreadd is **Automated Batch Evaluation**. 
+
+Here is the step-by-step workflow to use this repository to test if a new LLM, a new prompt, or a different retrieval strategy makes your RAG system better or worse.
+
+### Step 1: Define Your Dataset
+To test an agent, you need a baseline of questions. 
+* Open `data/golden_dataset.json` and observe the format of Python related questions.
+* Replace the contents with a JSON array of your own historical user queries and the expected ground-truth contexts.
+
+### Step 2: Modify the "Brain" (Your Agent)
+This pipeline evaluates whatever logic exists inside `app/agent/baseline_rag.py`. 
+
+To test a change, open that file and modify the variables:
+* **Testing a new model:** Locate the LLM initialization and change `model="llama-3.1-8b-instant"` to a different model (e.g., `gemma2-9b-it`).
+* **Testing a new prompt:** Update the `prompt_template` string with new instructions to see if the AI adheres to them better.
+* **Testing retrieval:** Change the vector database `search_kwargs={"k": 2}` to retrieve more or fewer documents.
+
+### Step 3: Run the Batch Evaluator
+Do not type questions one by one into the UI. Instead, run the automated integration test:
+```bash
+poetry run python app/agent/judge_the_agent.py

@@ -19,8 +19,6 @@ def append_to_markdown_report(case_num, question, agent_answer, scores, filepath
     # Ensure the directory exists
     os.makedirs(os.path.dirname(actual_path), exist_ok=True)
     
-    # TODO: Does the chief judge actually review the verdicts and explinations of the judges?
-    # Separate the Chief Judge from the Junior Council
     chief_judge_verdict = next((s for s in scores if s["judge_name"] == "CHIEF JUDGE"), None)
     junior_scores = [s for s in scores if s["judge_name"] != "CHIEF JUDGE"]
 
@@ -34,7 +32,6 @@ def append_to_markdown_report(case_num, question, agent_answer, scores, filepath
         f.write("| :--- | :---: | :--- |\n")
         ## TODO: Why are are judges giving their judgement twice in a row?
         for s in junior_scores:
-            # Clean up newlines in rationales so they don't break the Markdown table
             clean_rationale = s['rationale'].replace('\n', ' ')
             f.write(f"| **{s['judge_name']}** | {s['score']}/5 | {clean_rationale} |\n")
         
