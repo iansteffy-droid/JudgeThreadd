@@ -41,9 +41,18 @@ print("✅ Upload complete! The 'portfolio_docs' collection now exists in the cl
 print("🏗️ Setting up Supabase PostgreSQL tables...")
 DB_URI = os.environ.get("SUPABASE_DB_URI")
 
-# We use autocommit=True to avoid the transaction block error!
 with psycopg.connect(DB_URI, autocommit=True) as conn:
     memory = PostgresSaver(conn)
     memory.setup()
+    
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS eval_history (
+            id SERIAL PRIMARY KEY,
+            question TEXT,
+            chief_score INTEGER,
+            status TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    """)
     
 print("✅ Supabase tables created successfully!")

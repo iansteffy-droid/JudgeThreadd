@@ -13,6 +13,11 @@ from psycopg_pool import ConnectionPool
 
 load_dotenv()
 
+if not os.environ.get("GROQ_API_KEY"):
+    raise ValueError("🚨 GROQ_API_KEY is missing. Please check your .env file.")
+if not os.environ.get("SUPABASE_DB_URI"):
+    raise ValueError("🚨 SUPABASE_DB_URI is missing. Please check your .env file.")
+
 class EvaluationScore(BaseModel):
     name: str = Field(description="The exact name of the judge providing this score.")
     score: int = Field(description="A score from 1 to 5.", ge=1, le=5) 
@@ -103,6 +108,7 @@ def judge_tek_division(state: EvalState):
     result = structured_llm.invoke(prompt_val)
     output_dict = result.model_dump()
     return {"scores": [{"judge_name": "Judge Tek Division", "score": output_dict["score"], "rationale": output_dict["rationale"]}]}
+
 # --- FAN-IN AGGREGATOR ---
 def aggregator_node(state: EvalState):
     print("\n--- FINAL EVALUATION VERDICT ---")
@@ -133,6 +139,19 @@ def aggregator_node(state: EvalState):
         
         print(f"[CHIEF JUDGE] Score: {avg_score:.2f}/5")
         print(f"Rationale: {rationale}\n")
+        
+        # --- NEW: SAVE TO SUPABASE DATABASE ---
+        import psycopg
+        try:
+            with psycopg.connect(os.environ.get("SUPABASE_DB_URI"), autocommit=True) as conn:
+                status_text = "APPROVED" if final_score >= 3.5 else "DRIFT DETECTED"
+                conn.execute(
+                    "INSERT INTO eval_history (question, chief_score, status) VALUES (%s, %s, %s)",
+                    (state['question'], final_score, status_text)
+                )
+        except Exception as e:
+            print(f"Failed to log to database: {e}")
+        # --------------------------------------
         
         return {"scores": [chief_judge_verdict]}
         
@@ -188,8 +207,6 @@ connection_pool = ConnectionPool(
 )
 
 memory = PostgresSaver(connection_pool)
-
-# NOTE: memory.setup() HAS BEEN REMOVED FROM HERE!
 
 eval_app = workflow.compile(
     checkpointer=memory, 

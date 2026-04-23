@@ -15,6 +15,13 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 load_dotenv()
 
+if not os.environ.get("GROQ_API_KEY"):
+    raise ValueError("🚨 GROQ_API_KEY is missing. Please check your .env file.")
+if not os.environ.get("QDRANT_URL"):
+    raise ValueError("🚨 QDRANT_URL is missing. Please check your .env file.")
+if not os.environ.get("QDRANT_API_KEY"):
+    raise ValueError("🚨 QDRANT_API_KEY is missing. Please check your .env file.")
+
 # ==========================================\
 # 1. DATABASE SETUP (The Foundation)
 # ==========================================\
@@ -63,7 +70,6 @@ class IntakeVerdict(BaseModel):
     is_legal: str = Field(description="Output exactly 'yes' if the question is appropriate, on-topic, and clear. Output 'no' otherwise.")
     decree: str = Field(description="If 'yes', output 'Proceed'. If 'no', explain why the prompt is illegal, off-topic, or too vague.")
 
-# Initialize the Groq LLMs
 llm = ChatGroq(
     api_key=os.environ.get("GROQ_API_KEY"), 
     model="llama-3.1-8b-instant",

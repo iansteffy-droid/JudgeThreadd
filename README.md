@@ -66,3 +66,21 @@ To test a change, open that file and modify the variables:
 Do not type questions one by one into the UI. Instead, run the automated integration test:
 ```bash
 poetry run python app/agent/judge_the_agent.py
+
+## 🖥️ The Grand Hall Telemetry Dashboard (UI)
+
+While the batch runner is for automated testing, the **Grand Hall Dashboard** is a reactive Vue.js interface built for visual, human-in-the-loop debugging of single queries.
+
+### How to Launch the UI
+1. Ensure your FastAPI server is running in one terminal:
+   ```bash
+   poetry run uvicorn app.main:app --reload
+
+2. Open a second terminal, navigate to the frontend folder, and start the Vite development server:
+
+```bash
+cd frontend
+npm run dev
+```
+
+3. Open your browser to http://localhost:5173.
