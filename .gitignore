@@ -1,3 +1,4 @@
 .env
 public/test-content/**
 frontend/node_modules
+data/evaluation_report.md

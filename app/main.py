@@ -117,7 +117,7 @@ async def stream_telemetry(question: str, request: Request):
 
             eval_result = await asyncio.to_thread(council_of_judges.invoke, eval_state, config)
             
-            # --- NEW: WRITE TO MARKDOWN REPORT ---
+# --- NEW: WRITE TO MARKDOWN REPORT ---
             try:
                 report_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/evaluation_report.md"))
                 os.makedirs(os.path.dirname(report_path), exist_ok=True)
@@ -125,19 +125,28 @@ async def stream_telemetry(question: str, request: Request):
                 
                 with open(report_path, "a", encoding="utf-8") as f:
                     f.write(f"\n## Manual UI Execution: {timestamp}\n")
-                    f.write(f"**Question:** {eval_state['question']}\n\n")
-                    f.write("| Judge | Score |\n|---|---|\n")
+                    f.write(f"**Citizen Question:** {eval_state['question']}\n\n")
+                    
+                    # Format agent answer beautifully as a markdown blockquote
+                    agent_ans = eval_state['answer'].replace('\n', '\n> ')
+                    f.write(f"**Agent Answer:**\n> {agent_ans}\n\n")
+                    
+                    f.write("### Council Member Verdicts\n")
+                    f.write("| Judge | Score | Rationale |\n")
+                    f.write("| :--- | :---: | :--- |\n")
                     
                     chief_verdict = None
                     for score in eval_result["scores"]:
                         if score["judge_name"] != "CHIEF JUDGE":
-                            f.write(f"| **{score['judge_name']}** | {score['score']}/5 |\n")
+                            # Strip newlines from rationale so it doesn't break the markdown table structure
+                            safe_rationale = score['rationale'].replace('\n', ' ')
+                            f.write(f"| **{score['judge_name']}** | {score['score']}/5 | {safe_rationale} |\n")
                         else:
                             chief_verdict = score
                             
                     if chief_verdict:
                         f.write(f"\n**Chief Judge Score:** {chief_verdict['score']}/5\n")
-                        f.write(f"**Rationale:** {chief_verdict['rationale']}\n")
+                        f.write(f"**Overall Rationale:** {chief_verdict['rationale']}\n")
                     f.write("---\n")
             except Exception as e:
                 print(f"Failed to write to markdown report: {e}")
@@ -162,7 +171,7 @@ async def stream_telemetry(question: str, request: Request):
             yield f"data: {json.dumps(payload)}\n\n"
             await asyncio.sleep(0.2)
             
-            payload = {"event": "complete", "message": "✅ All verdicts recorded and archived."}
+            payload = {"event": "complete", "message": "✅ All verdicts recorded and archived in data/evaluation_report.md."}
             yield f"data: {json.dumps(payload)}\n\n"
 
         except asyncio.CancelledError:
