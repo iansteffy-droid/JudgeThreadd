@@ -3,6 +3,7 @@ import asyncio
 import os
 import uuid
 import psycopg
+from datetime import datetime
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,7 +32,6 @@ async def get_run_history():
     try:
         DB_URI = os.environ.get("SUPABASE_DB_URI")
         
-        # Run DB query in a thread to prevent blocking the event loop
         def fetch_db():
             with psycopg.connect(DB_URI, row_factory=dict_row) as conn:
                 runs = conn.execute("SELECT * FROM eval_history ORDER BY created_at DESC LIMIT 20").fetchall()
@@ -116,6 +116,32 @@ async def stream_telemetry(question: str, request: Request):
             await asyncio.sleep(0.1)
 
             eval_result = await asyncio.to_thread(council_of_judges.invoke, eval_state, config)
+            
+            # --- NEW: WRITE TO MARKDOWN REPORT ---
+            try:
+                report_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../data/evaluation_report.md"))
+                os.makedirs(os.path.dirname(report_path), exist_ok=True)
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
+                with open(report_path, "a", encoding="utf-8") as f:
+                    f.write(f"\n## Manual UI Execution: {timestamp}\n")
+                    f.write(f"**Question:** {eval_state['question']}\n\n")
+                    f.write("| Judge | Score |\n|---|---|\n")
+                    
+                    chief_verdict = None
+                    for score in eval_result["scores"]:
+                        if score["judge_name"] != "CHIEF JUDGE":
+                            f.write(f"| **{score['judge_name']}** | {score['score']}/5 |\n")
+                        else:
+                            chief_verdict = score
+                            
+                    if chief_verdict:
+                        f.write(f"\n**Chief Judge Score:** {chief_verdict['score']}/5\n")
+                        f.write(f"**Rationale:** {chief_verdict['rationale']}\n")
+                    f.write("---\n")
+            except Exception as e:
+                print(f"Failed to write to markdown report: {e}")
+            # --------------------------------------
 
             for score in eval_result["scores"]:
                 if score["judge_name"] != "CHIEF JUDGE":
@@ -128,6 +154,11 @@ async def stream_telemetry(question: str, request: Request):
                     await asyncio.sleep(0.2)
 
             payload = {"event": "info", "message": "⚖️ Chief Judge has aggregated the final scores."}
+            yield f"data: {json.dumps(payload)}\n\n"
+            await asyncio.sleep(0.2)
+            
+            # --- NEW: UI NOTIFICATION FOR THE REPORT ---
+            payload = {"event": "info", "message": "📄 A detailed Markdown report has been appended to data/evaluation_report.md"}
             yield f"data: {json.dumps(payload)}\n\n"
             await asyncio.sleep(0.2)
             
