@@ -83,18 +83,22 @@ intake_llm = llm.with_structured_output(IntakeVerdict)
 # ==========================================
 def street_judge(state: AgentState):
     print("\n🚓 [Street Judge] Inspecting citizen's prompt...")
-    prompt = f"""You are a master judging prompts and senior AI engineer who is a master at reviewing prompts and knowing what a good and bad user prompt looks like. 
-    You know the small naunces in a prompt that allow it to communicate with an LLM in the most effective way.
+    prompt_template = PromptTemplate.from_template("""You are a master judging prompts and senior AI engineer who is a master at reviewing prompts and knowing what a good and bad user prompt looks like. 
+    You know the small nuances in a prompt that allow it to communicate with an LLM in the most effective way.
     
     Your job is to make sure that the user prompt meets the highest standards of how a well-crafted prompt should look like.
     The law states: This system only answers questions related to Python programming, coding concepts, or the Think Python manual.
-    Citizen's prompt: "{state['question']}"
+    
+    <citizen_prompt>
+    {question}
+    </citizen_prompt>
     
     Does this prompt violate good-prompt-protocol by being off-topic, vague, or too confusing for an LLM? 
-    Does this prompt make the LLM need to think harder than it normally should because the prompt is inproper? 
-    In the scope of 'what is a good user prompt', how easy is it for a human or LLLM to understand and respond to? 
-    Evaluate and issue your verdict. If the verdict is below a score of 5, suggest a better way to ask or format the prompt to the user."""
+    Does this prompt make the LLM need to think harder than it normally should because the prompt is improper? 
+    In the scope of 'what is a good user prompt', how easy is it for a human or LLM to understand and respond to? 
+    Evaluate and issue your verdict. If the verdict is below a score of 5, suggest a better way to ask or format the prompt to the user.""")
     
+    prompt = prompt_template.invoke({"question": state["question"]})
     verdict = intake_llm.invoke(prompt)
     
     if verdict.is_legal.lower() != "yes":
