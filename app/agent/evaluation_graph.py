@@ -21,7 +21,7 @@ if not os.environ.get("SUPABASE_DB_URI"):
 class EvaluationScore(BaseModel):
     name: str = Field(description="The exact name of the judge providing this score.")
     score: int = Field(description="A score from 1 to 5.", ge=1, le=5) 
-    rationale: str = Field(description="Detailed explanation. CRITICAL: Do not use apostrophes (') or single quotes anywhere in this text to prevent JSON syntax errors.")
+    rationale: str = Field(description="Detailed explanation.")
 
 # --- STATE AND REDUCERS ---
 class EvalState(AgentState):
@@ -36,10 +36,10 @@ structured_llm = llm.with_structured_output(EvaluationScore)
 
 # --- PROMPT TEMPLATES ---
 relevance_template = PromptTemplate.from_template(
-    "You are Judge Relevance. Evaluate how well the answer addresses the question based ONLY on the context.\n"
-    "Question: {question}\n"
-    "Context: {context}\n"
-    "Answer: {answer}\n"
+    "You are Judge Relevance. Evaluate how well the answer addresses the question based ONLY on the context.\n\n"
+    "<question>\n{question}\n</question>\n\n"
+    "<context>\n{context}\n</context>\n\n"
+    "<answer>\n{answer}\n</answer>\n\n"
     "Output a score from 1-5 where 5 is perfectly relevant."
 )
 
@@ -47,26 +47,26 @@ hallucination_template = PromptTemplate.from_template(
     "You are a Judge of agent Hallucinations. \n"
     "You read and understand everything in the context and can always tell if the answer contains details that \n"
     "are not present in the context. \n\n"
-    "Question: {question}\n"
-    "Context: {context}\n"
-    "Answer: {answer}\n"
+    "<question>\n{question}\n</question>\n\n"
+    "<context>\n{context}\n</context>\n\n"
+    "<answer>\n{answer}\n</answer>\n\n"
     "Score 5 if perfectly grounded (no hallucinations), 1 if completely hallucinated."
 )
 
 psi_division_template = PromptTemplate.from_template(
     "You are Judge Psi Division. Evaluate if the answer correctly addresses the underlying goal or if it missed the point.\n"
     "Identify if the agent should be breaking down a complex question into easier-to-answer chunks and/or discover where and why the agent\n"
-    "misunderstood the goal of the question. \n"
-    "Question Intent: {question}\n"
-    "Answer: {answer}\n"
+    "misunderstood the goal of the question. \n\n"
+    "<question_intent>\n{question}\n</question_intent>\n\n"
+    "<answer>\n{answer}\n</answer>\n\n"
     "Score 5 if perfectly aligned, 1 if misinterpreted."
 )
 
 tek_division_template = PromptTemplate.from_template(
     "You are Judge Tek Division. Analyze the technical accuracy of the answer.\n"
-    "Specifically, check if any Python code, algorithms, or technical definitions provided in the Answer are factually correct according to modern software engineering standards.\n"
-    "Question: {question}\n"
-    "Answer: {answer}\n"
+    "Specifically, check if any Python code, algorithms, or technical definitions provided in the Answer are factually correct according to modern software engineering standards.\n\n"
+    "<question>\n{question}\n</question>\n\n"
+    "<answer>\n{answer}\n</answer>\n\n"
     "Score 5 if technically flawless, 1 if code or logic is flawed."
 )
 
