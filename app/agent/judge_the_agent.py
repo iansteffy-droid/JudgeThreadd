@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import uuid
 from datetime import datetime
 from app.agent.baseline_rag import main_app as rag_agent
 from app.agent.evaluation_graph import eval_app as council_of_judges
@@ -30,7 +31,6 @@ def append_to_markdown_report(case_num, question, agent_answer, scores, filepath
         f.write("### Council Member Verdicts\n")
         f.write("| Judge | Score | Rationale |\n")
         f.write("| :--- | :---: | :--- |\n")
-        ## TODO: Why are are judges giving their judgement twice in a row?
         for s in junior_scores:
             clean_rationale = s['rationale'].replace('\n', ' ')
             f.write(f"| **{s['judge_name']}** | {s['score']}/5 | {clean_rationale} |\n")
@@ -42,6 +42,7 @@ def append_to_markdown_report(case_num, question, agent_answer, scores, filepath
         f.write("\n---\n")
 
 def run_automated_evaluations():
+    run_id = uuid.uuid4().hex[:8]
     print("="*60)
     print("⚖️ THE COUNCIL OF JUDGES IS NOW IN SESSION ⚖️")
     print("="*60)
@@ -87,7 +88,7 @@ def run_automated_evaluations():
             "scores": [] 
         }
         
-        config = {"configurable": {"thread_id": f"case_file_{index}"}}
+        config = {"configurable": {"thread_id": f"case_file_{index}_{run_id}"}}
         
         council_result = council_of_judges.invoke(eval_state, config=config)
         
