@@ -2,18 +2,18 @@
     <img width="350" height="350" alt="JudgeThreadd" src="https://github.com/user-attachments/assets/dbe1fb0b-d289-430b-9273-f2ee6069a1bc" />
 </p>
 
-
 # ⚖️ JudgeThreadd: Agentic Evaluation Pipeline
 
 **An LLM-as-a-Judge Observability Tool to catch unreliable AI before it goes live.**
 
-An untested RAG system deployed to production can lead to "silent failures" where the AI hallucinates incorrect return policies, breaches brand safety, or provides bad financial advice, damaging user trust and incurring significant liability. 
+An untested RAG system deployed to production can lead to "silent failures" where the AI hallucinates incorrect return policies, breaches brand safety, or provides bad financial advice, damaging user trust and incurring significant liability.
 
-Well, not on JudgeThreadd's watch. 
+Well, not on JudgeThreadd's watch.
 
 JudgeThreadd is a continuous integration testing tool built to evaluate LLM agents before they reach production. It utilizes a highly parallelized "Council of Judges" to execute the law, ensuring your generative applications are safe, grounded, and technically accurate.
 
 ## 🛠️ The Tech Stack
+
 * **Orchestration:** LangGraph (Parallel DAG execution)
 * **Backend:** FastAPI (Python, Server-Sent Events/SSE)
 * **Frontend:** Vue.js 3 (Tailwind CSS, Vite, Real-time telemetry)
@@ -45,42 +45,52 @@ graph TD;
 
 ## 🧪 How to Use This to Improve Your Agents
 
-While the Grand Hall UI is excellent for visually debugging a single prompt in real-time, the true power of JudgeThreadd is **Automated Batch Evaluation**. 
+While the Grand Hall UI is excellent for visually debugging a single prompt in real-time, the true power of JudgeThreadd is **Automated Batch Evaluation**.
 
 Here is the step-by-step workflow to use this repository to test if a new LLM, a new prompt, or a different retrieval strategy makes your RAG system better or worse.
 
 ### Step 1: Define Your Dataset
-To test an agent, you need a baseline of questions. 
+
+To test an agent, you need a baseline of questions.
+
 * Open `data/golden_dataset.json` and observe the format of Python related questions.
 * Replace the contents with a JSON array of your own historical user queries and the expected ground-truth contexts.
 
 ### Step 2: Modify the "Brain" (Your Agent)
-This pipeline evaluates whatever logic exists inside `app/agent/baseline_rag.py`. 
+
+This pipeline evaluates whatever logic exists inside `app/agent/baseline_rag.py`.
 
 To test a change, open that file and modify the variables:
+
 * **Testing a new model:** Locate the LLM initialization and change `model="llama-3.1-8b-instant"` to a different model (e.g., `gemma2-9b-it`).
 * **Testing a new prompt:** Update the `prompt_template` string with new instructions to see if the AI adheres to them better.
 * **Testing retrieval:** Change the vector database `search_kwargs={"k": 2}` to retrieve more or fewer documents.
 
 ### Step 3: Run the Batch Evaluator
+
 Do not type questions one by one into the UI. Instead, run the automated integration test:
+
 ```bash
 poetry run python app/agent/judge_the_agent.py
+```
 
 ## 🖥️ The Grand Hall Telemetry Dashboard (UI)
 
 While the batch runner is for automated testing, the **Grand Hall Dashboard** is a reactive Vue.js interface built for visual, human-in-the-loop debugging of single queries.
 
 ### How to Launch the UI
-1. Ensure your FastAPI server is running in one terminal:
-   ```bash
-   poetry run uvicorn app.main:app --reload
 
-2. Open a second terminal, navigate to the frontend folder, and start the Vite development server:
+1. Ensure your FastAPI server is running in one terminal:
+
+```bash
+poetry run uvicorn app.main:app --reload
+```
+
+1. Open a second terminal, navigate to the frontend folder, and start the Vite development server:
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-3. Open your browser to http://localhost:5173.
+1. Open your browser to <http://localhost:5173>.
