@@ -18,6 +18,12 @@ if not os.environ.get("GROQ_API_KEY"):
 if not os.environ.get("SUPABASE_DB_URI"):
     raise ValueError("🚨 SUPABASE_DB_URI is missing. Please check your .env file.")
 
+DB_URI = os.environ.get("SUPABASE_DB_URI")
+connection_pool = ConnectionPool(
+    conninfo=DB_URI,
+    max_size=20,
+)
+
 class EvaluationScore(BaseModel):
     name: str = Field(description="The exact name of the judge providing this score.")
     score: int = Field(description="A score from 1 to 5.", ge=1, le=5) 
@@ -141,9 +147,9 @@ def aggregator_node(state: EvalState):
         print(f"Rationale: {rationale}\n")
         
         # --- NEW: SAVE TO SUPABASE DATABASE ---
-        import psycopg
         try:
-            with psycopg.connect(os.environ.get("SUPABASE_DB_URI"), autocommit=True) as conn:
+            with connection_pool.connection() as conn:
+                conn.autocommit = True
                 status_text = "APPROVED" if final_score >= 3.5 else "DRIFT DETECTED"
                 conn.execute(
                     "INSERT INTO eval_history (question, chief_score, status) VALUES (%s, %s, %s)",
@@ -198,13 +204,6 @@ workflow.add_conditional_edges(
 )
 
 workflow.add_edge("human_review", END)
-
-DB_URI = os.environ.get("SUPABASE_DB_URI")
-
-connection_pool = ConnectionPool(
-    conninfo=DB_URI,
-    max_size=20,
-)
 
 memory = PostgresSaver(connection_pool)
 
