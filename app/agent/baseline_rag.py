@@ -35,7 +35,7 @@ qdrant_db = QdrantVectorStore.from_existing_collection(
     api_key=os.environ.get("QDRANT_API_KEY"),
 )
 
-retriever = qdrant_db.as_retriever(search_kwargs={"k": 2})
+retriever = qdrant_db.as_retriever(search_kwargs={"k": 4})
 
 def setup_qdrant_database():
     print("🏗️ Building Sector Database and uploading to Qdrant Cloud...")
