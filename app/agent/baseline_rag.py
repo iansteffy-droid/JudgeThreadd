@@ -126,11 +126,13 @@ def generate_answer(state: AgentState):
     2. If the Context does not contain the answer, do not make one up. State clearly: "The provided manual does not contain this information."
     3. Include brief code examples if the context supports it.
     
-    Context:
+    <context>
     {context}
+    </context>
     
-    Citizen's Question:
+    <citizen_question>
     {question}
+    </citizen_question>
     
     Instructor's Answer:
     """
