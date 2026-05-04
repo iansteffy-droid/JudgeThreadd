@@ -2,6 +2,7 @@ import json
 import os
 import time
 import uuid
+import asyncio
 from datetime import datetime
 from app.agent.baseline_rag import main_app as rag_agent
 from app.agent.evaluation_graph import eval_app as council_of_judges
@@ -41,7 +42,44 @@ def append_to_markdown_report(case_num, question, agent_answer, scores, filepath
             f.write(f"**Ruling:** {chief_judge_verdict['rationale']}\n")
         f.write("\n---\n")
 
-def run_automated_evaluations():
+file_lock = asyncio.Lock()
+
+async def process_case(index, case, run_id, semaphore):
+    async with semaphore:
+        question = case["question"]
+        print(f"\n\n" + "-"*60)
+        print(f"📁 CASE FILE #{index}: '{question}'")
+        print("-" * 60)
+
+        print(f"\n[PHASE 1] The Academy Instructor is drafting an answer... (Case {index})")
+        initial_state = {"question": question, "context": "", "answer": ""}
+        agent_result = await rag_agent.ainvoke(initial_state)
+        
+        if "Street Judge Decree:" in agent_result["answer"]:
+            print(f"🛑 BLOCKED BY STREET JUDGE (Case {index}):\n{agent_result['answer']}")
+            async with file_lock:
+                append_to_markdown_report(index, question, agent_result['answer'], [])
+            return
+
+        print(f"✅ AGENT'S ANSWER GENERATED (Case {index}).")
+        
+        print(f"\n[PHASE 2] The Council is evaluating the answer... (Case {index})")
+        eval_state = {
+            "question": agent_result["question"],
+            "context": agent_result["context"], 
+            "answer": agent_result["answer"],
+            "scores": [] 
+        }
+        
+        config = {"configurable": {"thread_id": f"case_file_{index}_{run_id}"}}
+        
+        council_result = await council_of_judges.ainvoke(eval_state, config=config)
+        
+        async with file_lock:
+            append_to_markdown_report(index, question, agent_result["answer"], council_result["scores"])
+        print(f"💾 Case #{index} archived to evaluation_report.md")
+
+async def run_automated_evaluations():
     run_id = uuid.uuid4().hex[:8]
     print("="*60)
     print("⚖️ THE COUNCIL OF JUDGES IS NOW IN SESSION ⚖️")
@@ -61,39 +99,12 @@ def run_automated_evaluations():
         print("🚨 Error: Could not find golden_dataset.json. Did you run generate_dataset.py first?")
         return
 
+    semaphore = asyncio.Semaphore(5)
+    tasks = []
     for index, case in enumerate(test_cases, 1):
-        question = case["question"]
-        print(f"\n\n" + "-"*60)
-        print(f"📁 CASE FILE #{index}: '{question}'")
-        print("-"*60)
+        tasks.append(process_case(index, case, run_id, semaphore))
         
-        print("\n[PHASE 1] The Academy Instructor is drafting an answer...")
-        initial_state = {"question": question, "context": "", "answer": ""}
-        agent_result = rag_agent.invoke(initial_state)
-        
-        if "Street Judge Decree:" in agent_result["answer"]:
-            print(f"🛑 BLOCKED BY STREET JUDGE:\n{agent_result['answer']}")
-            # Log the block to the markdown file
-            append_to_markdown_report(index, question, agent_result['answer'], [])
-            continue
-
-        print(f"✅ AGENT'S ANSWER GENERATED.")
-        time.sleep(1) 
-        
-        print("\n[PHASE 2] The Council is evaluating the answer...")
-        eval_state = {
-            "question": agent_result["question"],
-            "context": agent_result["context"], 
-            "answer": agent_result["answer"],
-            "scores": [] 
-        }
-        
-        config = {"configurable": {"thread_id": f"case_file_{index}_{run_id}"}}
-        
-        council_result = council_of_judges.invoke(eval_state, config=config)
-        
-        append_to_markdown_report(index, question, agent_result["answer"], council_result["scores"])
-        print(f"💾 Case #{index} archived to evaluation_report.md")
+    await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
-    run_automated_evaluations()
+    asyncio.run(run_automated_evaluations())
