@@ -40,6 +40,8 @@ llm = ChatGroq(
 )
 structured_llm = llm.with_structured_output(EvaluationScore)
 
+# TODO Judge Faithful (did the answer come only from the document?) 
+
 # --- PROMPT TEMPLATES ---
 relevance_template = PromptTemplate.from_template(
     "You are Judge Relevance. Evaluate how well the answer addresses the question based ONLY on the context.\n\n"
