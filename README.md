@@ -43,6 +43,16 @@ graph TD;
     HITL --> END;
 ```
 
+## 🏗️ First-Time Setup: Building the Vector Database
+
+Before running any evaluations, you must ingest the baseline data (e.g., the 'Think Python' manual) into your Qdrant vector database. If you skip this, the agent will throw a `404 Not Found` error.
+
+Run the baseline RAG script once to create the `portfolio_docs` collection:
+
+```bash
+poetry run python -m app.agent.baseline_rag
+```
+
 ## 🧪 How to Use This to Improve Your Agents
 
 While the Grand Hall UI is excellent for visually debugging a single prompt in real-time, the true power of JudgeThreadd is **Automated Batch Evaluation**.
@@ -71,7 +81,7 @@ To test a change, open that file and modify the variables:
 Do not type questions one by one into the UI. Instead, run the automated integration test:
 
 ```bash
-poetry run python app/agent/judge_the_agent.py
+poetry run python -m app.agent.judge_the_agent
 ```
 
 ## 🖥️ The Grand Hall Telemetry Dashboard (UI)
@@ -86,11 +96,26 @@ While the batch runner is for automated testing, the **Grand Hall Dashboard** is
 poetry run uvicorn app.main:app --reload
 ```
 
-1. Open a second terminal, navigate to the frontend folder, and start the Vite development server:
+2. Open a second terminal, navigate to the frontend folder, and start the Vite development server:
 
 ```bash
 cd frontend
+npm install
 npm run dev
 ```
 
-1. Open your browser to <http://localhost:5173>.
+3. Add an "Environment Variables" Section
+Since your app relies heavily on API keys (Groq, Qdrant), you must explicitly tell users what to put in their `.env` file. Otherwise, the application will crash immediately on launch.
+
+```md
+### 3. Environment Variables
+Create a `.env` file in the root directory and add the following keys. You will need active accounts with Groq and Qdrant (Cloud or Local).
+```
+
+```env
+GROQ_API_KEY="gsk_your_groq_api_key"
+QDRANT_URL="[https://your-cluster-url.qdrant.tech](https://your-cluster-url.qdrant.tech)" # Or http://localhost:6333 for local
+QDRANT_API_KEY="your_qdrant_api_key"
+```
+
+4. Open your browser to <http://localhost:5173>.
