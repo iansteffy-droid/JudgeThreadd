@@ -51,6 +51,7 @@ with psycopg.connect(DB_URI, autocommit=True) as conn:
             question TEXT,
             chief_score INTEGER,
             status TEXT,
+            logprobs JSONB,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
     """)

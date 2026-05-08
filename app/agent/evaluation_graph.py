@@ -1,4 +1,5 @@
 import os
+import json
 import operator
 from app.agent.baseline_rag import AgentState
 from typing import Annotated, List
@@ -36,13 +37,11 @@ class EvalState(AgentState):
 llm = ChatGroq(
     api_key=os.environ.get("GROQ_API_KEY"), 
     model="llama-3.3-70b-versatile",
+    temperature=0.0,
+    model_kwargs={"seed": 42},
     max_retries=15
 )
-structured_llm = llm.with_structured_output(EvaluationScore)
-
-# TODO Judge Faithful (did the answer come only from the document?) 
-
-# TODO set the Judge temperature to 0.0 and use a fixed seed to ensure the outputs are as deterministic and repeatable as possible.
+structured_llm = llm.with_structured_output(EvaluationScore, include_raw=True)
 
 # --- PROMPT TEMPLATES ---
 relevance_template = PromptTemplate.from_template(
@@ -63,6 +62,14 @@ hallucination_template = PromptTemplate.from_template(
     "Score 5 if perfectly grounded (no hallucinations), 1 if completely hallucinated."
 )
 
+faithful_template = PromptTemplate.from_template(
+    "You are Judge Faithful. Evaluate if the answer is derived ONLY from the provided context.\n"
+    "Does the answer contain any information that is not supported by or derived from the context?\n\n"
+    "<context>\n{context}\n</context>\n\n"
+    "<answer>\n{answer}\n</answer>\n\n"
+    "Score 5 if perfectly faithful to the document, 1 if completely unfaithful."
+)
+
 psi_division_template = PromptTemplate.from_template(
     "You are Judge Psi Division. Evaluate if the answer correctly addresses the underlying goal or if it missed the point.\n"
     "Identify if the agent should be breaking down a complex question into easier-to-answer chunks and/or discover where and why the agent\n"
@@ -81,15 +88,26 @@ tek_division_template = PromptTemplate.from_template(
 )
 
 # --- EVALUATION NODES ---
+def extract_score(result, judge_name):
+    output_dict = result["parsed"].model_dump()
+    raw_msg = result["raw"]
+    logprobs = raw_msg.response_metadata.get("logprobs") if hasattr(raw_msg, "response_metadata") else None
+    return {
+        "scores": [{
+            "judge_name": judge_name, 
+            "score": output_dict["score"], 
+            "rationale": output_dict["rationale"],
+            "logprobs": logprobs
+        }]
+    }
+
 def judge_relevance(state: EvalState):
     prompt_val = relevance_template.invoke({
         "question": state['question'], 
         "context": state['context'], 
         "answer": state['answer']
     })
-    result = structured_llm.invoke(prompt_val)
-    output_dict = result.model_dump()
-    return {"scores": [{"judge_name": "Judge Relevance", "score": output_dict["score"], "rationale": output_dict["rationale"]}]}
+    return extract_score(structured_llm.invoke(prompt_val), "Judge Relevance")
 
 def judge_hallucination(state: EvalState):
     prompt_val = hallucination_template.invoke({
@@ -97,27 +115,28 @@ def judge_hallucination(state: EvalState):
         "context": state['context'], 
         "answer": state['answer']
     })
-    result = structured_llm.invoke(prompt_val)
-    output_dict = result.model_dump()
-    return {"scores": [{"judge_name": "Judge Hallucination", "score": output_dict["score"], "rationale": output_dict["rationale"]}]}
+    return extract_score(structured_llm.invoke(prompt_val), "Judge Hallucination")
+
+def judge_faithful(state: EvalState):
+    prompt_val = faithful_template.invoke({
+        "context": state['context'], 
+        "answer": state['answer']
+    })
+    return extract_score(structured_llm.invoke(prompt_val), "Judge Faithful")
 
 def judge_psi_division(state: EvalState):
     prompt_val = psi_division_template.invoke({
         "question": state['question'], 
         "answer": state['answer']
     })
-    result = structured_llm.invoke(prompt_val)
-    output_dict = result.model_dump()
-    return {"scores": [{"judge_name": "Judge Psi Division", "score": output_dict["score"], "rationale": output_dict["rationale"]}]}
+    return extract_score(structured_llm.invoke(prompt_val), "Judge Psi Division")
 
 def judge_tek_division(state: EvalState):
     prompt_val = tek_division_template.invoke({
         "question": state['question'], 
         "answer": state['answer']
     })
-    result = structured_llm.invoke(prompt_val)
-    output_dict = result.model_dump()
-    return {"scores": [{"judge_name": "Judge Tek Division", "score": output_dict["score"], "rationale": output_dict["rationale"]}]}
+    return extract_score(structured_llm.invoke(prompt_val), "Judge Tek Division")
 
 # --- FAN-IN AGGREGATOR ---
 def aggregator_node(state: EvalState):
@@ -125,11 +144,14 @@ def aggregator_node(state: EvalState):
     
     total_score = 0
     num_judges = len(state['scores'])
+    all_logprobs = {}
     
     for score in state['scores']:
         print(f"[{score['judge_name']}] Score: {score['score']}/5")
         print(f"Rationale: {score['rationale']}\n")
         total_score += int(score['score'])
+        if "logprobs" in score and score["logprobs"]:
+            all_logprobs[score['judge_name']] = score["logprobs"]
         
     if num_judges > 0:
         avg_score = total_score / num_judges
@@ -155,9 +177,15 @@ def aggregator_node(state: EvalState):
             with connection_pool.connection() as conn:
                 conn.autocommit = True
                 status_text = "APPROVED" if final_score >= 3.5 else "DRIFT DETECTED"
+                
+                # Make sure the logprobs column exists
+                conn.execute("ALTER TABLE eval_history ADD COLUMN IF NOT EXISTS logprobs JSONB")
+                
+                logprobs_json = json.dumps(all_logprobs) if all_logprobs else None
+                
                 conn.execute(
-                    "INSERT INTO eval_history (question, chief_score, status) VALUES (%s, %s, %s)",
-                    (state['question'], final_score, status_text)
+                    "INSERT INTO eval_history (question, chief_score, status, logprobs) VALUES (%s, %s, %s, %s)",
+                    (state['question'], final_score, status_text, logprobs_json)
                 )
         except Exception as e:
             print(f"Failed to log to database: {e}")
@@ -183,6 +211,7 @@ workflow = StateGraph(EvalState)
 
 workflow.add_node("relevance", judge_relevance)
 workflow.add_node("hallucination", judge_hallucination)
+workflow.add_node("faithful", judge_faithful)
 workflow.add_node("psi_division", judge_psi_division)
 workflow.add_node("tek_division", judge_tek_division)
 workflow.add_node("aggregator", aggregator_node)
@@ -190,13 +219,14 @@ workflow.add_node("aggregator", aggregator_node)
 # Fan-out: From the START, trigger all three judges at the exact same time
 workflow.add_edge(START, "relevance")
 workflow.add_edge(START, "hallucination")
+workflow.add_edge(START, "faithful")
 workflow.add_edge(START, "psi_division")
 workflow.add_edge(START, "tek_division")
 
 workflow.add_node("human_review", human_review_node)
 
 # Fan-in: Wait for all judges to finish, then send them to the aggregator
-workflow.add_edge(["relevance", "hallucination", "psi_division", "tek_division"], "aggregator")
+workflow.add_edge(["relevance", "hallucination", "faithful", "psi_division", "tek_division"], "aggregator")
 
 workflow.add_conditional_edges(
     "aggregator", 
