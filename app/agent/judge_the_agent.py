@@ -73,7 +73,11 @@ async def process_case(index, case, run_id, semaphore):
         
         config = {"configurable": {"thread_id": f"case_file_{index}_{run_id}"}}
         
-        council_result = await council_of_judges.ainvoke(eval_state, config=config)
+        council_result = await asyncio.to_thread(
+            council_of_judges.invoke, 
+            eval_state, 
+            config
+        )
         
         async with file_lock:
             append_to_markdown_report(index, question, agent_result["answer"], council_result["scores"])
@@ -99,7 +103,7 @@ async def run_automated_evaluations():
         print("🚨 Error: Could not find golden_dataset.json. Did you run generate_dataset.py first?")
         return
 
-    semaphore = asyncio.Semaphore(5)
+    semaphore = asyncio.Semaphore(1)
     tasks = []
     for index, case in enumerate(test_cases, 1):
         tasks.append(process_case(index, case, run_id, semaphore))

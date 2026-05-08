@@ -27,7 +27,7 @@ connection_pool = ConnectionPool(
 
 class EvaluationScore(BaseModel):
     name: str = Field(description="The exact name of the judge providing this score.")
-    score: int = Field(description="A score from 1 to 5.", ge=1, le=5) 
+    score: str = Field(description="Score from 1 to 5.")
     rationale: str = Field(description="Detailed explanation.")
 
 # --- STATE AND REDUCERS ---
