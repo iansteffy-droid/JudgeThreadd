@@ -183,6 +183,7 @@ main_app = workflow.compile()
 # 5. EXECUTION & TESTING
 # ==========================================
 if __name__ == "__main__":
+    setup_qdrant_database()
     print("\n" + "="*50)
     print("TEST CASE 1: A Good, Legal Prompt")
     print("="*50)
