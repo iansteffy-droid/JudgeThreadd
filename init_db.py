@@ -3,7 +3,7 @@ import psycopg
 from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings import FastEmbedEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from langgraph.checkpoint.postgres import PostgresSaver
 
@@ -22,7 +22,7 @@ documents = loader.load()
 text_splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=120)
 chunks = text_splitter.split_documents(documents)
 
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+embeddings = FastEmbedEmbeddings(model_name="BAAI/bge-small-en-v1.5")
 
 QdrantVectorStore.from_documents(
     chunks,

@@ -10,8 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from psycopg.rows import dict_row
 
-from app.agent.baseline_rag import main_app as rag_agent
-from app.agent.evaluation_graph import eval_app as council_of_judges
+from app.agent.baseline_rag import create_rag_app
+from app.agent.evaluation_graph import create_eval_app
 
 app = FastAPI(title="JudgeThreadd Telemetry Server")
 
@@ -46,9 +46,12 @@ async def get_run_history():
 
 @app.post("/evaluate")
 async def evaluate_sync(request: QueryRequest):
+    rag_agent = create_rag_app()
+    council_of_judges = create_eval_app()
+
     rag_state = {"question": request.question, "context": "", "answer": ""}
     rag_result = await asyncio.to_thread(rag_agent.invoke, rag_state)
-    
+
     if "Street Judge Decree:" in rag_result.get("answer", ""):
         return {"status": "blocked", "message": rag_result["answer"]}
 
@@ -58,27 +61,30 @@ async def evaluate_sync(request: QueryRequest):
         "answer": rag_result["answer"],
         "scores": []
     }
-    
+
     config = {"configurable": {"thread_id": f"sync_eval_{uuid.uuid4()}"}}
     eval_result = await asyncio.to_thread(council_of_judges.invoke, eval_state, config)
-    
+
     return {"status": "success", "evaluation": eval_result["scores"]}
 
 
 @app.get("/stream_telemetry")
-async def stream_telemetry(question: str, request: Request):
+async def stream_telemetry(question: str, provider: str = "groq", model: str = None, request: Request = None):
     """
     Expects a GET request. Streams the execution trace back to the client.
     """
+    rag_agent = create_rag_app(provider=provider, model=model)
+    council_of_judges = create_eval_app(provider=provider, model=model)
+
     async def event_generator():
         try:
             payload = {"event": "info", "message": "🔌 Uplink established. Dispatching Street Judge..."}
             yield f"data: {json.dumps(payload)}\n\n"
-            await asyncio.sleep(0.1) 
-            
-            # 1. STREAM THE BASELINE RAG AGENT 
+            await asyncio.sleep(0.1)
+
+            # 1. STREAM THE BASELINE RAG AGENT
             rag_state = {"question": question, "context": "", "answer": ""}
-            
+
             async for chunk in rag_agent.astream(rag_state, stream_mode="updates"):
                 if await request.is_disconnected(): break
                 

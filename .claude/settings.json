@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep -l \"setup_qdrant\\\\|populate.*qdrant\\\\|from_documents\")",
+      "Bash(dir \"c:\\\\Users\\\\7za\\\\Desktop\\\\code\\\\JudgeThreadd\\\\public\\\\test-content\")",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__execute_sql"
+    ]
+  }
+}
