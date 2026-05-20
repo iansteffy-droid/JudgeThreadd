@@ -81,20 +81,21 @@ class IntakeVerdict(BaseModel):
 def _make_street_judge(intake_llm):
     def street_judge(state: AgentState):
         print("\n🚓 [Street Judge] Inspecting citizen's prompt...")
-        prompt_template = PromptTemplate.from_template("""You are a master judging prompts and senior AI engineer who is a master at reviewing prompts and knowing what a good and bad user prompt looks like.
-    You know the small nuances in a prompt that allow it to communicate with an LLM in the most effective way.
-
-    Your job is to make sure that the user prompt meets the highest standards of how a well-crafted prompt should look like.
+        prompt_template = PromptTemplate.from_template("""You are a strict prompt quality judge and senior AI engineer.
     The law states: This system only answers questions related to Python programming, coding concepts, or the Think Python manual.
 
     <citizen_prompt>
     {question}
     </citizen_prompt>
 
-    Does this prompt violate good-prompt-protocol by being off-topic, vague, or too confusing for an LLM?
-    Does this prompt make the LLM need to think harder than it normally should because the prompt is improper?
-    In the scope of 'what is a good user prompt', how easy is it for a human or LLM to understand and respond to?
-    Evaluate and issue your verdict. If the verdict is below a score of 5, suggest a better way to ask or format the prompt to the user.""")
+    Evaluate the prompt above. A prompt is LEGAL ('yes') if it meets ALL of these criteria:
+    1. It is on-topic — related to Python programming, coding concepts, or the Think Python manual.
+    2. It is clear and specific enough for an LLM to understand and answer.
+    3. It is not vague, nonsensical, or confusing.
+
+    A prompt is ILLEGAL ('no') if it is off-topic, too vague, or too confusing.
+
+    Issue your structured verdict now.""")
 
         prompt = prompt_template.invoke({"question": state["question"]})
         verdict = intake_llm.invoke(prompt)
