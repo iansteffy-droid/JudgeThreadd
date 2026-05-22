@@ -3,6 +3,7 @@ import json
 import operator
 from app.agent.baseline_rag import AgentState
 from typing import Annotated, List
+from datetime import datetime
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from langgraph.checkpoint.memory import MemorySaver
@@ -16,14 +17,16 @@ load_dotenv()
 
 if not os.environ.get("GROQ_API_KEY"):
     raise ValueError("🚨 GROQ_API_KEY is missing. Please check your .env file.")
-if not os.environ.get("SUPABASE_DB_URI"):
-    raise ValueError("🚨 SUPABASE_DB_URI is missing. Please check your .env file.")
 
 DB_URI = os.environ.get("SUPABASE_DB_URI")
-connection_pool = ConnectionPool(
-    conninfo=DB_URI,
-    max_size=20,
-)
+connection_pool = None
+if DB_URI:
+    try:
+        _pool = ConnectionPool(conninfo=DB_URI, max_size=20, open=False)
+        _pool.open(wait=True, timeout=5.0)
+        connection_pool = _pool
+    except Exception as e:
+        print(f"Warning: DB unavailable ({e}). Evaluation history will not be persisted.")
 
 class EvaluationScore(BaseModel):
     name: str = Field(description="The exact name of the judge providing this score.")
@@ -86,6 +89,34 @@ tek_division_template = PromptTemplate.from_template(
     "<answer>\n{answer}\n</answer>\n\n"
     "Score 5 if technically flawless, 1 if code or logic is flawed."
 )
+
+def write_to_markdown_report(question, answer, scores):
+    report_path = os.path.join(os.path.dirname(__file__), "../../data/evaluation_report.md")
+    os.makedirs(os.path.dirname(report_path), exist_ok=True)
+
+    chief_verdict = next((s for s in scores if s["judge_name"] == "CHIEF JUDGE"), None)
+    junior_scores = [s for s in scores if s["judge_name"] != "CHIEF JUDGE"]
+
+    if not os.path.exists(report_path) or os.path.getsize(report_path) == 0:
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write("# 🏛️ Mega-City One: AI Evaluation Archives\n")
+            f.write(f"*Session Date: {datetime.now().strftime('%Y-%m-%d')}*\n\n---\n")
+
+    with open(report_path, "a", encoding="utf-8") as f:
+        f.write(f"\n## Evaluation: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        f.write(f"**Question:** {question}\n\n")
+        f.write(f"**Answer:**\n> {answer.replace(chr(10), chr(10)+'> ')}\n\n")
+        f.write("### Council Member Verdicts\n")
+        f.write("| Judge | Score | Rationale |\n")
+        f.write("| :--- | :---: | :--- |\n")
+        for s in junior_scores:
+            clean_rationale = s['rationale'].replace('\n', ' ')
+            f.write(f"| **{s['judge_name']}** | {s['score']}/5 | {clean_rationale} |\n")
+        if chief_verdict:
+            f.write("\n### ⚖️ Final Supreme Decree\n")
+            f.write(f"**Chief Judge Score:** {chief_verdict['score']}/5\n\n")
+            f.write(f"**Ruling:** {chief_verdict['rationale']}\n")
+        f.write("\n---\n")
 
 # --- EVALUATION NODES ---
 def extract_score(result, judge_name):
@@ -174,6 +205,8 @@ def aggregator_node(state: EvalState):
         
         # --- NEW: SAVE TO SUPABASE DATABASE ---
         try:
+            if connection_pool is None:
+                raise RuntimeError("No DB connection")
             with connection_pool.connection() as conn:
                 conn.autocommit = True
                 status_text = "APPROVED" if final_score >= 3.5 else "DRIFT DETECTED"
@@ -239,10 +272,14 @@ workflow.add_conditional_edges(
 
 workflow.add_edge("human_review", END)
 
-memory = PostgresSaver(connection_pool)
+if connection_pool is not None:
+    memory = PostgresSaver(connection_pool)
+    memory.setup()
+else:
+    memory = MemorySaver()
 
 eval_app = workflow.compile(
-    checkpointer=memory, 
+    checkpointer=memory,
     interrupt_before=["human_review"]
 )
 
@@ -254,4 +291,6 @@ if __name__ == "__main__":
         "answer": "A tuple is a list of values that can be changed at any time. It is exactly the same as a Python dictionary.",
     }
     print("Running parallel evaluation graph...")
-    eval_app.invoke(test_state)
+    result = eval_app.invoke(test_state, config={"configurable": {"thread_id": "test-run-1"}})
+    write_to_markdown_report(test_state["question"], test_state["answer"], result["scores"])
+    print("📄 Verdict saved to data/evaluation_report.md")
