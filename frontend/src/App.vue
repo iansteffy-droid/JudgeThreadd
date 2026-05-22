@@ -8,8 +8,10 @@ import HistoryTable from './components/HistoryTable.vue'
 const searchQuery = ref('What is a python tuple?')
 const events = ref([])
 const isEvaluating = ref(false)
+const isBatchEvaluating = ref(false)
 const eventSource = ref(null)
-const runHistory = ref([]) 
+const runHistory = ref([])
+const datasetFile = ref(null)
 
 const fetchHistory = async () => {
   try {
@@ -23,29 +25,21 @@ const fetchHistory = async () => {
 
 onMounted(fetchHistory)
 
-const startEvaluation = () => {
-  if (!searchQuery.value) return;
-  
-  events.value = []
-  isEvaluating.value = true
-
+const openSseStream = (url) => {
   if (eventSource.value) eventSource.value.close()
-
-  const url = `http://127.0.0.1:8000/stream_telemetry?question=${encodeURIComponent(searchQuery.value)}`
   const { data, close } = useEventSource(url)
   eventSource.value = { close }
-
   import('vue').then(({ watch }) => {
     watch(data, (newData) => {
       if (newData) {
         try {
           const parsedEvent = JSON.parse(newData)
           events.value.push(parsedEvent)
-          
           if (parsedEvent.event === 'complete' || parsedEvent.event === 'error') {
             isEvaluating.value = false
+            isBatchEvaluating.value = false
             close()
-            setTimeout(fetchHistory, 500) 
+            setTimeout(fetchHistory, 500)
           }
         } catch (e) {
           console.error("Failed to parse event:", newData)
@@ -53,6 +47,44 @@ const startEvaluation = () => {
       }
     })
   })
+}
+
+const startEvaluation = () => {
+  if (!searchQuery.value) return
+  events.value = []
+  isEvaluating.value = true
+  const url = `http://127.0.0.1:8000/stream_telemetry?question=${encodeURIComponent(searchQuery.value)}`
+  openSseStream(url)
+}
+
+const startDatasetEvaluation = async () => {
+  events.value = []
+  isBatchEvaluating.value = true
+
+  let url
+  if (datasetFile.value) {
+    try {
+      const form = new FormData()
+      form.append('file', datasetFile.value)
+      const res = await fetch('http://127.0.0.1:8000/upload_dataset', { method: 'POST', body: form })
+      if (!res.ok) {
+        const err = await res.json()
+        events.value.push({ event: 'error', message: `Upload failed: ${err.detail}` })
+        isBatchEvaluating.value = false
+        return
+      }
+      const { dataset_id } = await res.json()
+      url = `http://127.0.0.1:8000/stream_dataset_evaluation?use_default=false&dataset_id=${dataset_id}`
+    } catch (e) {
+      events.value.push({ event: 'error', message: `Upload error: ${e.message}` })
+      isBatchEvaluating.value = false
+      return
+    }
+  } else {
+    url = 'http://127.0.0.1:8000/stream_dataset_evaluation?use_default=true'
+  }
+
+  openSseStream(url)
 }
 </script>
 
@@ -63,8 +95,15 @@ const startEvaluation = () => {
       <p class="text-gray-400 mt-2">Live Agentic Observability Pipeline</p>
     </header>
 
-    <QueryInput v-model="searchQuery" :isEvaluating="isEvaluating" @startEvaluation="startEvaluation" />
-    <TraceConsole :events="events" :isEvaluating="isEvaluating" />
+    <QueryInput
+      v-model="searchQuery"
+      :isEvaluating="isEvaluating"
+      :isBatchEvaluating="isBatchEvaluating"
+      @startEvaluation="startEvaluation"
+      @startDatasetEvaluation="startDatasetEvaluation"
+      @update:datasetFile="datasetFile = $event"
+    />
+    <TraceConsole :events="events" :isEvaluating="isEvaluating || isBatchEvaluating" />
     <HistoryTable :runHistory="runHistory" />
   </div>
 </template>
