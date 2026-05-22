@@ -6,6 +6,8 @@ import TraceConsole from './components/TraceConsole.vue'
 import HistoryTable from './components/HistoryTable.vue'
 
 const searchQuery = ref('What is a python tuple?')
+const selectedProvider = ref('groq')
+const selectedModel = ref('llama-3.3-70b-versatile')
 const events = ref([])
 const isEvaluating = ref(false)
 const isBatchEvaluating = ref(false)
@@ -53,7 +55,7 @@ const startEvaluation = () => {
   if (!searchQuery.value) return
   events.value = []
   isEvaluating.value = true
-  const url = `http://127.0.0.1:8000/stream_telemetry?question=${encodeURIComponent(searchQuery.value)}`
+  const url = `http://127.0.0.1:8000/stream_telemetry?question=${encodeURIComponent(searchQuery.value)}&provider=${selectedProvider.value}&model=${encodeURIComponent(selectedModel.value)}`
   openSseStream(url)
 }
 
@@ -74,14 +76,14 @@ const startDatasetEvaluation = async () => {
         return
       }
       const { dataset_id } = await res.json()
-      url = `http://127.0.0.1:8000/stream_dataset_evaluation?use_default=false&dataset_id=${dataset_id}`
+      url = `http://127.0.0.1:8000/stream_dataset_evaluation?use_default=false&dataset_id=${dataset_id}&provider=${selectedProvider.value}&model=${encodeURIComponent(selectedModel.value)}`
     } catch (e) {
       events.value.push({ event: 'error', message: `Upload error: ${e.message}` })
       isBatchEvaluating.value = false
       return
     }
   } else {
-    url = 'http://127.0.0.1:8000/stream_dataset_evaluation?use_default=true'
+    url = `http://127.0.0.1:8000/stream_dataset_evaluation?use_default=true&provider=${selectedProvider.value}&model=${encodeURIComponent(selectedModel.value)}`
   }
 
   openSseStream(url)
@@ -97,6 +99,8 @@ const startDatasetEvaluation = async () => {
 
     <QueryInput
       v-model="searchQuery"
+      v-model:selectedProvider="selectedProvider"
+      v-model:selectedModel="selectedModel"
       :isEvaluating="isEvaluating"
       :isBatchEvaluating="isBatchEvaluating"
       @startEvaluation="startEvaluation"

@@ -1,8 +1,9 @@
 <script setup>
 import { ref, computed } from 'vue'
+import ModelSelector from './ModelSelector.vue'
 
-const props = defineProps(['modelValue', 'isEvaluating', 'isBatchEvaluating'])
-const emit = defineEmits(['update:modelValue', 'startEvaluation', 'startDatasetEvaluation', 'update:datasetFile'])
+const props = defineProps(['modelValue', 'isEvaluating', 'isBatchEvaluating', 'selectedProvider', 'selectedModel'])
+const emit = defineEmits(['update:modelValue', 'update:selectedProvider', 'update:selectedModel', 'startEvaluation', 'startDatasetEvaluation', 'update:datasetFile'])
 
 const selectedFile = ref(null)
 const selectedFileName = computed(() => selectedFile.value?.name ?? 'golden_dataset.json')
@@ -18,7 +19,7 @@ function onFileChange(e) {
   <div class="space-y-4 mb-8">
     <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
       <label class="block text-sm font-medium text-gray-300 mb-2">Subject Query</label>
-      <div class="flex gap-4">
+      <div class="flex gap-4 mb-4">
         <input
           :value="modelValue"
           @input="$emit('update:modelValue', $event.target.value)"
@@ -35,6 +36,12 @@ function onFileChange(e) {
           {{ isEvaluating ? 'Evaluating...' : 'Dispatch Judges' }}
         </button>
       </div>
+      <ModelSelector
+        :selectedProvider="selectedProvider"
+        :selectedModel="selectedModel"
+        @update:selectedProvider="$emit('update:selectedProvider', $event)"
+        @update:selectedModel="$emit('update:selectedModel', $event)"
+      />
     </div>
 
     <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
