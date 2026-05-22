@@ -6,10 +6,12 @@ import TraceConsole from './components/TraceConsole.vue'
 import HistoryTable from './components/HistoryTable.vue'
 
 const searchQuery = ref('What is a python tuple?')
+const selectedProvider = ref('groq')
+const selectedModel = ref('llama-3.3-70b-versatile')
 const events = ref([])
 const isEvaluating = ref(false)
 const eventSource = ref(null)
-const runHistory = ref([]) 
+const runHistory = ref([])
 
 const fetchHistory = async () => {
   try {
@@ -31,7 +33,7 @@ const startEvaluation = () => {
 
   if (eventSource.value) eventSource.value.close()
 
-  const url = `http://127.0.0.1:8000/stream_telemetry?question=${encodeURIComponent(searchQuery.value)}`
+  const url = `http://127.0.0.1:8000/stream_telemetry?question=${encodeURIComponent(searchQuery.value)}&provider=${selectedProvider.value}&model=${encodeURIComponent(selectedModel.value)}`
   const { data, close } = useEventSource(url)
   eventSource.value = { close }
 
@@ -63,7 +65,13 @@ const startEvaluation = () => {
       <p class="text-gray-400 mt-2">Live Agentic Observability Pipeline</p>
     </header>
 
-    <QueryInput v-model="searchQuery" :isEvaluating="isEvaluating" @startEvaluation="startEvaluation" />
+    <QueryInput
+      v-model="searchQuery"
+      v-model:selectedProvider="selectedProvider"
+      v-model:selectedModel="selectedModel"
+      :isEvaluating="isEvaluating"
+      @startEvaluation="startEvaluation"
+    />
     <TraceConsole :events="events" :isEvaluating="isEvaluating" />
     <HistoryTable :runHistory="runHistory" />
   </div>
