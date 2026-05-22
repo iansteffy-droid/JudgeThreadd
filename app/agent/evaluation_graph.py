@@ -90,8 +90,9 @@ tek_division_template = PromptTemplate.from_template(
     "Score 5 if technically flawless, 1 if code or logic is flawed."
 )
 
-def write_to_markdown_report(question, answer, scores):
-    report_path = os.path.join(os.path.dirname(__file__), "../../data/evaluation_report.md")
+def write_to_markdown_report(question, answer, scores, report_path=None):
+    if report_path is None:
+        report_path = os.path.join(os.path.dirname(__file__), "../../data/evaluation_report.md")
     os.makedirs(os.path.dirname(report_path), exist_ok=True)
 
     chief_verdict = next((s for s in scores if s["judge_name"] == "CHIEF JUDGE"), None)
@@ -284,13 +285,30 @@ eval_app = workflow.compile(
 )
 
 if __name__ == "__main__":
-    # Test the graph with a deliberately BAD answer to see if the judges catch it
-    test_state = {
-        "question": "What is a python tuple?",
-        "context": "A tuple is a sequence of values much like a list. The values stored in a tuple can be any type, and they are indexed by integers. The important difference is that tuples are immutable.",
-        "answer": "A tuple is a list of values that can be changed at any time. It is exactly the same as a Python dictionary.",
-    }
-    print("Running parallel evaluation graph...")
-    result = eval_app.invoke(test_state, config={"configurable": {"thread_id": "test-run-1"}})
-    write_to_markdown_report(test_state["question"], test_state["answer"], result["scores"])
-    print("📄 Verdict saved to data/evaluation_report.md")
+    import uuid
+
+    dataset_path = os.path.join(os.path.dirname(__file__), "../../data/golden_dataset.json")
+    with open(dataset_path, "r") as f:
+        dataset = json.load(f)
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    report_path = os.path.join(os.path.dirname(__file__), f"../../data/reports/evaluation_report_{timestamp}.md")
+    os.makedirs(os.path.dirname(report_path), exist_ok=True)
+
+    print(f"Loaded {len(dataset)} cases from golden_dataset.json. Running evaluation...")
+
+    run_id = uuid.uuid4().hex[:8]
+    for index, case in enumerate(dataset, 1):
+        print(f"\n--- Case {index}/{len(dataset)}: {case['question'][:60]}...")
+        state = {
+            "question": case["question"],
+            "context": case["ground_truth_context"],
+            "answer": case["expected_answer"],
+            "scores": [],
+        }
+        config = {"configurable": {"thread_id": f"golden_{index}_{run_id}"}}
+        result = eval_app.invoke(state, config=config)
+        write_to_markdown_report(case["question"], case["expected_answer"], result["scores"], report_path)
+        print(f"  Case {index} archived.")
+
+    print(f"\n✅ All {len(dataset)} cases evaluated. Report saved to {report_path}")
