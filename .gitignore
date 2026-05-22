@@ -4,3 +4,6 @@ frontend/node_modules
 data/evaluation_report.md
 app/agent/__pycache__
 app/__pycache__/
+app/__pycache__/main.cpython-313.pyc
+app/agent/__pycache__/baseline_rag.cpython-313.pyc
+app/agent/__pycache__/evaluation_graph.cpython-313.pyc
