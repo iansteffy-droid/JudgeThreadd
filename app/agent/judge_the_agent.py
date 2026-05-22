@@ -30,11 +30,12 @@ def append_to_markdown_report(case_num, question, agent_answer, scores, filepath
         f.write(f"**Agent Answer:**\n> {agent_answer.replace(chr(10), chr(10)+'> ')}\n\n")
         
         f.write("### Council Member Verdicts\n")
-        f.write("| Judge | Score | Rationale |\n")
-        f.write("| :--- | :---: | :--- |\n")
+        f.write("| Judge | Score | Rationale | Citation |\n")
+        f.write("| :--- | :---: | :--- | :--- |\n")
         for s in junior_scores:
             clean_rationale = s['rationale'].replace('\n', ' ')
-            f.write(f"| **{s['judge_name']}** | {s['score']}/5 | {clean_rationale} |\n")
+            clean_citation = s.get('citation', '').replace('\n', ' ')
+            f.write(f"| **{s['judge_name']}** | {s['score']}/5 | {clean_rationale} | *\"{clean_citation}\"* |\n")
         
         if chief_judge_verdict:
             f.write("\n### ⚖️ Final Supreme Decree\n")

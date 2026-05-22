@@ -1,9 +1,10 @@
 import os
+import re
 import json
 import operator
 from app.agent.baseline_rag import AgentState
 from typing import Annotated, List
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from dotenv import load_dotenv
 from langchain_core.prompts import PromptTemplate
 from langgraph.graph import StateGraph, START, END
@@ -32,59 +33,108 @@ except Exception as _e:
 
 class EvaluationScore(BaseModel):
     name: str = Field(description="The exact name of the judge providing this score.")
-    score: str = Field(description="Score from 1 to 5.")
-    rationale: str = Field(description="Detailed explanation.")
+    score: int = Field(description="Score from 1 to 5.")
+    rationale: str = Field(description="Detailed explanation of the score.")
+    citation: str = Field(description="A direct verbatim quote from the context or answer that most supports your verdict. Must be an exact excerpt, not a paraphrase.")
+
+    @field_validator("score", mode="before")
+    @classmethod
+    def coerce_score(cls, v):
+        if isinstance(v, int):
+            return v
+        match = re.search(r"\d", str(v))
+        return int(match.group()) if match else 3
 
 class EvalState(AgentState):
     scores: Annotated[List[dict], operator.add]
 
 # --- PROMPT TEMPLATES ---
 relevance_template = PromptTemplate.from_template(
-    "You are Judge Relevance. Evaluate how well the answer addresses the question based ONLY on the context.\n\n"
+    "You are Judge Relevance. Your job is to determine how well the answer actually addresses the question, "
+    "using the context as the authoritative source of truth. Be critical — partial answers should not receive high scores.\n\n"
     "<question>\n{question}\n</question>\n\n"
     "<context>\n{context}\n</context>\n\n"
     "<answer>\n{answer}\n</answer>\n\n"
-    "Output a score from 1-5 where 5 is perfectly relevant."
+    "Scoring rubric:\n"
+    "5 — Answer directly and completely addresses every aspect of the question\n"
+    "4 — Addresses the main question but misses minor details asked for\n"
+    "3 — Partially addresses the question with notable gaps or omissions\n"
+    "2 — Tangentially related to the question but mostly misses the point\n"
+    "1 — Does not address the question at all\n\n"
+    "Provide your score, a rationale explaining the score, and a direct verbatim citation from the context or answer that most supports your verdict."
 )
 
 hallucination_template = PromptTemplate.from_template(
-    "You are a Judge of agent Hallucinations. \n"
-    "You read and understand everything in the context and can always tell if the answer contains details that \n"
-    "are not present in the context. \n\n"
+    "You are Judge Hallucination. Your job is to detect whether the answer introduces facts, claims, or details "
+    "that are NOT explicitly present in the context. Assume the answer is hallucinated until proven otherwise — "
+    "every claim must be traceable to specific text in the context.\n\n"
     "<question>\n{question}\n</question>\n\n"
     "<context>\n{context}\n</context>\n\n"
     "<answer>\n{answer}\n</answer>\n\n"
-    "Score 5 if perfectly grounded (no hallucinations), 1 if completely hallucinated."
+    "Scoring rubric:\n"
+    "5 — Every factual claim in the answer is explicitly present in the context\n"
+    "4 — Nearly all claims are grounded; at most one detail is implied but not stated verbatim\n"
+    "3 — Most claims are grounded, but 1–2 claims noticeably exceed or are absent from the context\n"
+    "2 — Many claims go beyond or directly contradict the context\n"
+    "1 — The answer contains numerous invented facts not present in the context\n\n"
+    "Provide your score, a rationale explaining the score, and a direct verbatim citation of the specific claim "
+    "in the answer that most clearly demonstrates your verdict (quote the hallucinated or grounded text)."
 )
 
 faithful_template = PromptTemplate.from_template(
-    "You are Judge Faithful. Evaluate if the answer is derived ONLY from the provided context.\n"
-    "Does the answer contain any information that is not supported by or derived from the context?\n\n"
+    "You are Judge Faithful. Your job is to determine whether the answer is derived ONLY from the provided context, "
+    "with no injection of outside knowledge. Any claim in the answer that cannot be traced to the context is a faithfulness violation.\n\n"
     "<context>\n{context}\n</context>\n\n"
     "<answer>\n{answer}\n</answer>\n\n"
-    "Score 5 if perfectly faithful to the document, 1 if completely unfaithful."
+    "Scoring rubric:\n"
+    "5 — Entirely grounded in the context; no outside knowledge introduced\n"
+    "4 — Predominantly grounded; minor inferences tightly derived from the text\n"
+    "3 — Mix of grounded and ungrounded statements — some outside knowledge crept in\n"
+    "2 — Mostly reliant on outside knowledge rather than the provided context\n"
+    "1 — Completely ignores or contradicts the provided context\n\n"
+    "Provide your score, a rationale explaining the score, and a direct verbatim citation from the context or answer "
+    "that most clearly demonstrates whether the answer stayed faithful or strayed."
 )
 
 psi_division_template = PromptTemplate.from_template(
-    "You are Judge Psi Division. Evaluate if the answer correctly addresses the underlying goal or if it missed the point.\n"
-    "Identify if the agent should be breaking down a complex question into easier-to-answer chunks and/or discover where and why the agent\n"
-    "misunderstood the goal of the question. \n\n"
+    "You are Judge Psi Division. Your job is to evaluate whether the answer correctly addresses the underlying intent "
+    "of the question — not just the surface wording. Identify if the agent misunderstood the goal, answered a different "
+    "question, or failed to decompose a complex question into the correct sub-problems.\n\n"
     "<question_intent>\n{question}\n</question_intent>\n\n"
     "<answer>\n{answer}\n</answer>\n\n"
-    "Score 5 if perfectly aligned, 1 if misinterpreted."
+    "Scoring rubric:\n"
+    "5 — Perfectly addresses the user's underlying intent; no misalignment\n"
+    "4 — Mostly on-target; minor misalignment with the true intent\n"
+    "3 — Understands part of the goal but misses key aspects of what was actually being asked\n"
+    "2 — Misunderstands the primary goal; answer is tangentially related at best\n"
+    "1 — Completely misinterprets the intent; answers a different question entirely\n\n"
+    "Provide your score, a rationale explaining the score, and a direct verbatim citation from the answer "
+    "that best illustrates whether the intent was understood or missed."
 )
 
 tek_division_template = PromptTemplate.from_template(
-    "You are Judge Tek Division. Analyze the technical accuracy of the answer.\n"
-    "Specifically, check if any Python code, algorithms, or technical definitions provided in the Answer are factually correct according to modern software engineering standards.\n\n"
+    "You are Judge Tek Division. Your job is to verify the technical accuracy of every factual claim, "
+    "code snippet, algorithm, or definition in the answer. A single incorrect technical claim is enough to lower the score. "
+    "Do not give benefit of the doubt — check each technical assertion carefully.\n\n"
     "<question>\n{question}\n</question>\n\n"
     "<answer>\n{answer}\n</answer>\n\n"
-    "Score 5 if technically flawless, 1 if code or logic is flawed."
+    "Scoring rubric:\n"
+    "5 — All code, algorithms, and definitions are technically correct per modern standards\n"
+    "4 — Mostly correct; minor imprecision that would not cause bugs or mislead\n"
+    "3 — At least one technical inaccuracy that could mislead a learner\n"
+    "2 — Multiple technical errors; code or logic would behave incorrectly\n"
+    "1 — Technically flawed throughout; code would fail or produce wrong results\n\n"
+    "Provide your score, a rationale explaining the score, and a direct verbatim citation of the specific technical "
+    "claim or code in the answer that most clearly supports your verdict."
 )
 
 # --- SHARED HELPERS (no LLM dependency) ---
 def extract_score(result, judge_name):
-    output_dict = result["parsed"].model_dump()
+    parsed = result.get("parsed")
+    if parsed is None:
+        output_dict = {"score": 3, "rationale": "Structured output parsing failed."}
+    else:
+        output_dict = parsed.model_dump()
     raw_msg = result["raw"]
     logprobs = raw_msg.response_metadata.get("logprobs") if hasattr(raw_msg, "response_metadata") else None
     return {
@@ -92,6 +142,7 @@ def extract_score(result, judge_name):
             "judge_name": judge_name,
             "score": output_dict["score"],
             "rationale": output_dict["rationale"],
+            "citation": output_dict.get("citation", ""),
             "logprobs": logprobs
         }]
     }
@@ -106,7 +157,7 @@ def aggregator_node(state: EvalState):
     for score in state['scores']:
         print(f"[{score['judge_name']}] Score: {score['score']}/5")
         print(f"Rationale: {score['rationale']}\n")
-        total_score += int(score['score'])
+        total_score += score['score']
         if "logprobs" in score and score["logprobs"]:
             all_logprobs[score['judge_name']] = score["logprobs"]
 
@@ -152,7 +203,7 @@ def human_review_node(state: EvalState):
 
 def route_after_aggregation(state: EvalState):
     for score in state['scores']:
-        if int(score['score']) <= 3:
+        if score['score'] <= 3:
             return "human_review"
     return "end"
 
@@ -216,4 +267,4 @@ if __name__ == "__main__":
         "answer": "A tuple is a list of values that can be changed at any time. It is exactly the same as a Python dictionary.",
     }
     print("Running parallel evaluation graph...")
-    eval_app.invoke(test_state)
+    eval_app.invoke(test_state, config={"configurable": {"thread_id": "test_failure_case"}})
