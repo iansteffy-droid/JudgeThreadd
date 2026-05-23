@@ -36,12 +36,6 @@ function onFileChange(e) {
           {{ isEvaluating ? 'Evaluating...' : 'Dispatch Judges' }}
         </button>
       </div>
-      <ModelSelector
-        :selectedProvider="selectedProvider"
-        :selectedModel="selectedModel"
-        @update:selectedProvider="$emit('update:selectedProvider', $event)"
-        @update:selectedModel="$emit('update:selectedModel', $event)"
-      />
     </div>
 
     <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
@@ -64,6 +58,12 @@ function onFileChange(e) {
           {{ isBatchEvaluating ? 'Evaluating...' : 'Dispatch Judges on Dataset' }}
         </button>
       </div>
+      <ModelSelector
+        :selectedProvider="selectedProvider"
+        :selectedModel="selectedModel"
+        @update:selectedProvider="$emit('update:selectedProvider', $event)"
+        @update:selectedModel="$emit('update:selectedModel', $event)"
+      />
       <p class="mt-2 text-xs text-gray-500">
         Upload a JSON file matching the golden dataset schema, or leave blank to use the default <span class="text-gray-400">golden_dataset.json</span>.
       </p>

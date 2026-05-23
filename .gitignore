@@ -1,7 +1,7 @@
 .env
 public/test-content/**
 frontend/node_modules
-data/evaluation_report.md
+data/**
 app/agent/__pycache__
 app/__pycache__/
 app/__pycache__/main.cpython-313.pyc

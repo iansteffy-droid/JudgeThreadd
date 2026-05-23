@@ -17,6 +17,18 @@ app = FastAPI(title="JudgeThreadd Telemetry Server")
 
 uploaded_datasets: dict[str, list] = {}
 
+PROVIDER_LABELS = {
+    "groq":   "Groq (Cloud)",
+    "ollama": "Ollama (Local)",
+}
+MODEL_LABELS = {
+    "llama-3.3-70b-versatile": "Llama 3.3 · 70B (Versatile)",
+    "llama-3.1-8b-instant":    "Llama 3.1 · 8B (Instant)",
+    "qwen2.5:3b":              "Qwen 2.5 · 3B",
+    "llama3.2:3b":             "Llama 3.2 · 3B",
+    "phi3.5":                  "Phi-3.5 Mini · 3.8B",
+}
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -239,9 +251,21 @@ async def stream_dataset_evaluation(request: Request, use_default: bool = True, 
                 os.path.join(os.path.dirname(__file__), f"../data/reports/evaluation_report_{timestamp}.md")
             )
             os.makedirs(os.path.dirname(report_path), exist_ok=True)
+            effective_provider = (provider or os.environ.get("LLM_PROVIDER", "groq")).lower()
+            effective_model = model or (
+                os.environ.get("LOCAL_MODEL", "qwen2.5:3b")
+                if effective_provider == "ollama"
+                else os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+            )
+            provider_label = PROVIDER_LABELS.get(effective_provider, effective_provider.title())
+            model_label = MODEL_LABELS.get(effective_model, effective_model)
+
             with open(report_path, "w", encoding="utf-8") as f:
                 f.write("# 🏛️ Mega-City One: AI Evaluation Archives\n")
-                f.write(f"*Session Date: {datetime.now().strftime('%Y-%m-%d')}*\n\n---\n")
+                f.write(f"*Session Date: {datetime.now().strftime('%Y-%m-%d')}*\n")
+                f.write(f"*Provider: {provider_label}  |  Model: {model_label}*\n\n---\n")
+            yield f"data: {json.dumps({'event': 'info', 'message': f'🤖 Provider: {provider_label}  |  Model: {model_label}'})}\n\n"
+            await asyncio.sleep(0.05)
 
             yield f"data: {json.dumps({'event': 'info', 'message': f'⚖️ Council is now in session. Processing {total} cases from {source_name}...'})}\n\n"
             await asyncio.sleep(0.1)
