@@ -53,11 +53,6 @@ Run the baseline RAG script once to create the `portfolio_docs` collection:
 poetry run python -m app.agent.baseline_rag
 ```
 
-## 🧪 How to Use This to Improve Your Agents
-
-While the Grand Hall UI is excellent for visually debugging a single prompt in real-time, the true power of JudgeThreadd is **Automated Batch Evaluation**.
-
-Here is the step-by-step workflow to use this repository to test if a new LLM, a new prompt, or a different retrieval strategy makes your RAG system better or worse.
 
 ### Step 1: Define Your Dataset
 
@@ -66,7 +61,7 @@ To test an agent, you need a baseline of questions.
 * Open `data/golden_dataset.json` and observe the format of Python related questions.
 * Replace the contents with a JSON array of your own historical user queries and the expected ground-truth contexts.
 
-### Step 2: Modify the "Brain" (Your Agent)
+### Step 2: Modify the "Brain" 
 
 This pipeline evaluates whatever logic exists inside `app/agent/baseline_rag.py`.
 

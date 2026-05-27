@@ -1,9 +1,10 @@
 <script setup>
 import { ref, computed } from 'vue'
 import ModelSelector from './ModelSelector.vue'
+import TestContentUploader from './TestContentUploader.vue'
 
-const props = defineProps(['modelValue', 'isEvaluating', 'isBatchEvaluating', 'selectedProvider', 'selectedModel'])
-const emit = defineEmits(['update:modelValue', 'update:selectedProvider', 'update:selectedModel', 'startEvaluation', 'startDatasetEvaluation', 'update:datasetFile'])
+const props = defineProps(['modelValue', 'isEvaluating', 'isBatchEvaluating', 'isIngesting', 'selectedProvider', 'selectedModel'])
+const emit = defineEmits(['update:modelValue', 'update:selectedProvider', 'update:selectedModel', 'startEvaluation', 'startDatasetEvaluation', 'update:datasetFile', 'startIngestion'])
 
 const selectedFile = ref(null)
 const selectedFileName = computed(() => selectedFile.value?.name ?? 'golden_dataset.json')
@@ -37,6 +38,11 @@ function onFileChange(e) {
         </button>
       </div>
     </div>
+
+    <TestContentUploader
+      :isIngesting="isIngesting"
+      @startIngestion="$emit('startIngestion', $event)"
+    />
 
     <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
       <label class="block text-sm font-medium text-gray-300 mb-2">Golden Dataset</label>

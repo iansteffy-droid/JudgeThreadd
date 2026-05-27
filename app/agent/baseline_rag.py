@@ -37,10 +37,11 @@ qdrant_db = QdrantVectorStore.from_existing_collection(
 
 retriever = qdrant_db.as_retriever(search_kwargs={"k": 4})
 
-def setup_qdrant_database():
+def setup_qdrant_database(pdf_path: str = None):
     print("🏗️ Building Sector Database and uploading to Qdrant Cloud...")
-    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    pdf_path = os.path.join(project_root, "public", "test-content", "thinkpython.pdf")
+    if pdf_path is None:
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        pdf_path = os.path.join(project_root, "public", "test-content", "thinkpython.pdf")
 
     loader = PyPDFLoader(pdf_path)
     documents = loader.load()

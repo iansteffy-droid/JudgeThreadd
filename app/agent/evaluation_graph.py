@@ -245,6 +245,7 @@ eval_app = create_eval_app()
 
 if __name__ == "__main__":
     import uuid
+    from app.agent.baseline_rag import main_app as rag_agent
 
     dataset_path = os.path.join(os.path.dirname(__file__), "../../data/golden_dataset.json")
     with open(dataset_path, "r") as f:
@@ -259,15 +260,22 @@ if __name__ == "__main__":
     run_id = uuid.uuid4().hex[:8]
     for index, case in enumerate(dataset, 1):
         print(f"\n--- Case {index}/{len(dataset)}: {case['question'][:60]}...")
+
+        rag_result = rag_agent.invoke({
+            "question": case["question"],
+            "context": "",
+            "answer": ""
+        })
+
         state = {
             "question": case["question"],
             "context": case["ground_truth_context"],
-            "answer": case["expected_answer"],
+            "answer": rag_result["answer"],
             "scores": [],
         }
         config = {"configurable": {"thread_id": f"golden_{index}_{run_id}"}}
         result = eval_app.invoke(state, config=config)
-        write_to_markdown_report(case["question"], case["expected_answer"], result["scores"], report_path)
+        write_to_markdown_report(case["question"], rag_result["answer"], result["scores"], report_path)
         print(f"  Case {index} archived.")
 
     print(f"\n✅ All {len(dataset)} cases evaluated. Report saved to {report_path}")

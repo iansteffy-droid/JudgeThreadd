@@ -11,6 +11,7 @@ const selectedModel = ref('llama-3.3-70b-versatile')
 const events = ref([])
 const isEvaluating = ref(false)
 const isBatchEvaluating = ref(false)
+const isIngesting = ref(false)
 const eventSource = ref(null)
 const runHistory = ref([])
 const datasetFile = ref(null)
@@ -40,6 +41,7 @@ const openSseStream = (url) => {
           if (parsedEvent.event === 'complete' || parsedEvent.event === 'error') {
             isEvaluating.value = false
             isBatchEvaluating.value = false
+            isIngesting.value = false
             close()
             setTimeout(fetchHistory, 500)
           }
@@ -56,6 +58,13 @@ const startEvaluation = () => {
   events.value = []
   isEvaluating.value = true
   const url = `http://127.0.0.1:8000/stream_telemetry?question=${encodeURIComponent(searchQuery.value)}&provider=${selectedProvider.value}&model=${encodeURIComponent(selectedModel.value)}`
+  openSseStream(url)
+}
+
+const startIngestion = (pdfKey) => {
+  events.value = []
+  isIngesting.value = true
+  const url = `http://127.0.0.1:8000/stream_ingest?pdf_key=${encodeURIComponent(pdfKey)}`
   openSseStream(url)
 }
 
@@ -103,8 +112,10 @@ const startDatasetEvaluation = async () => {
       v-model:selectedModel="selectedModel"
       :isEvaluating="isEvaluating"
       :isBatchEvaluating="isBatchEvaluating"
+      :isIngesting="isIngesting"
       @startEvaluation="startEvaluation"
       @startDatasetEvaluation="startDatasetEvaluation"
+      @startIngestion="startIngestion"
       @update:datasetFile="datasetFile = $event"
     />
     <TraceConsole :events="events" :isEvaluating="isEvaluating || isBatchEvaluating" />

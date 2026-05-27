@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from psycopg.rows import dict_row
 
-from app.agent.baseline_rag import create_rag_app
+from app.agent.baseline_rag import create_rag_app, setup_qdrant_database, main_app as rag_agent
 from app.agent.evaluation_graph import create_eval_app, write_to_markdown_report
 
 app = FastAPI(title="JudgeThreadd Telemetry Server")
@@ -224,6 +224,53 @@ async def upload_dataset(file: UploadFile = File(...)):
     return {"dataset_id": dataset_id, "case_count": len(dataset)}
 
 
+uploaded_pdfs: dict[str, str] = {}
+
+
+@app.post("/upload_pdf")
+async def upload_pdf(file: UploadFile = File(...)):
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted.")
+    safe_name = os.path.basename(file.filename)
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+    dest_dir = os.path.join(project_root, "public", "test-content")
+    os.makedirs(dest_dir, exist_ok=True)
+    dest_path = os.path.join(dest_dir, safe_name)
+    content = await file.read()
+    with open(dest_path, "wb") as f:
+        f.write(content)
+    pdf_key = uuid.uuid4().hex[:12]
+    uploaded_pdfs[pdf_key] = dest_path
+    return {"pdf_key": pdf_key, "filename": safe_name, "saved_path": dest_path}
+
+
+@app.get("/stream_ingest")
+async def stream_ingest(pdf_key: str, request: Request = None):
+    async def event_generator():
+        try:
+            if pdf_key not in uploaded_pdfs:
+                yield f"data: {json.dumps({'event': 'error', 'message': 'PDF not found. Please re-upload.'})}\n\n"
+                return
+            pdf_path = uploaded_pdfs[pdf_key]
+            filename = os.path.basename(pdf_path)
+
+            yield f"data: {json.dumps({'event': 'info', 'message': f'📄 PDF saved: {filename}'})}\n\n"
+            await asyncio.sleep(0.1)
+            yield f"data: {json.dumps({'event': 'info', 'message': '🏗️ Starting Qdrant ingestion — chunking and embedding the document (this may take 1–3 minutes)...'})}\n\n"
+            await asyncio.sleep(0.1)
+
+            await asyncio.to_thread(setup_qdrant_database, pdf_path)
+
+            del uploaded_pdfs[pdf_key]
+            yield f"data: {json.dumps({'event': 'complete', 'message': f'✅ Ingestion complete. RAG pipeline now uses {filename}.'})}\n\n"
+        except asyncio.CancelledError:
+            print("🚨 Ingest stream client disconnected.")
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'message': f'Ingestion failed: {str(e)}'})}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
 @app.get("/stream_dataset_evaluation")
 async def stream_dataset_evaluation(request: Request, use_default: bool = True, dataset_id: str = None, provider: str = "groq", model: str = None):
     council_of_judges = create_eval_app(provider=provider, model=model)
@@ -278,16 +325,22 @@ async def stream_dataset_evaluation(request: Request, use_default: bool = True, 
                 yield f"data: {json.dumps({'event': 'node_start', 'message': f'📁 Case {index}/{total}: {question}'})}\n\n"
                 await asyncio.sleep(0.05)
 
-                # Use ground_truth_context and expected_answer directly — no RAG agent
-                eval_state = {
-                    "question": question,
-                    "context": case["ground_truth_context"],
-                    "answer": case["expected_answer"],
-                    "scores": []
-                }
                 config = {"configurable": {"thread_id": f"dataset_{index}_{run_id}"}}
 
                 try:
+                    rag_result = await asyncio.to_thread(rag_agent.invoke, {
+                        "question": question,
+                        "context": "",
+                        "answer": ""
+                    })
+
+                    eval_state = {
+                        "question": question,
+                        "context": case["ground_truth_context"],
+                        "answer": rag_result["answer"],
+                        "scores": []
+                    }
+
                     council_result = await asyncio.to_thread(council_of_judges.invoke, eval_state, config)
                     scores = council_result["scores"]
 
@@ -303,7 +356,7 @@ async def stream_dataset_evaluation(request: Request, use_default: bool = True, 
                         msg = f"⚖️ Chief Judge: {chief['score']}/5 — {chief['rationale']}"
                         yield f"data: {json.dumps({'event': 'info', 'message': msg})}\n\n"
 
-                    await asyncio.to_thread(write_to_markdown_report, question, case["expected_answer"], scores, report_path)
+                    await asyncio.to_thread(write_to_markdown_report, question, rag_result["answer"], scores, report_path)
 
                 except Exception as e:
                     yield f"data: {json.dumps({'event': 'error', 'message': f'Case {index} evaluation failed: {str(e)}'})}\n\n"
