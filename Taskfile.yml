@@ -1,0 +1,50 @@
+version: '3'
+
+tasks:
+  install:
+    desc: Install all dependencies (Python + frontend)
+    cmds:
+      - poetry install
+      - cmd: npm install
+        dir: frontend
+
+  run:
+    desc: Run backend and frontend in separate terminal windows
+    cmds:
+      - '$COMSPEC /c run.bat'
+
+  backend:
+    desc: Start the FastAPI server (http://localhost:8000)
+    cmds:
+      - poetry run uvicorn app.main:app --reload
+
+  frontend:
+    desc: Start the Vue dev server (http://localhost:5173)
+    dir: frontend
+    cmds:
+      - npm run dev
+
+  init-db:
+    desc: One-time setup — creates Qdrant collection and Supabase tables
+    cmds:
+      - poetry run python init_db.py
+
+  generate-dataset:
+    desc: Generate golden test cases from the PDF using Gemini
+    cmds:
+      - poetry run python -m app.agent.generate_dataset
+
+  evaluate:
+    desc: Run batch evaluation over the golden dataset
+    cmds:
+      - poetry run python -m app.agent.judge_the_agent
+
+  report:
+    desc: Print analytics dashboard from the latest evaluation report
+    cmds:
+      - poetry run python -m app.agent.grand_hall_dashboard
+
+  test-rag:
+    desc: Smoke-test the RAG pipeline with 3 sample questions
+    cmds:
+      - poetry run python -m app.agent.baseline_rag

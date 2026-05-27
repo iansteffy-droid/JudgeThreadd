@@ -12,6 +12,39 @@ Well, not on JudgeThreadd's watch.
 
 JudgeThreadd is a continuous integration testing tool built to evaluate LLM agents before they reach production. It utilizes a highly parallelized "Council of Judges" to execute the law, ensuring your generative applications are safe, grounded, and technically accurate.
 
+## ⚡ Quick Start
+
+Install the [Taskfile CLI](https://taskfile.dev/installation/) first:
+
+```bash
+npm install -g @go-task/cli
+```
+
+Then:
+
+```bash
+cp .env.example .env      # fill in your API keys (see env vars below)
+task install              # install Python + frontend dependencies
+task init-db              # one-time setup: creates Qdrant collection + Supabase tables
+task run                  # opens backend (localhost:8000) + frontend (localhost:5173) in separate windows
+```
+
+### All Commands
+
+| Command | What it does |
+|---|---|
+| `task install` | Install Python + frontend dependencies |
+| `task run` | Start backend and frontend in separate windows |
+| `task backend` | Start just the FastAPI server (`localhost:8000`) |
+| `task frontend` | Start just the Vue UI (`localhost:5173`) |
+| `task init-db` | One-time setup — creates Qdrant collection and Supabase tables |
+| `task generate-dataset` | Generate 20 test cases from the PDF using Gemini |
+| `task evaluate` | Run batch evaluation over the golden dataset |
+| `task report` | Print analytics dashboard from the latest report |
+| `task test-rag` | Smoke-test the RAG pipeline with 3 sample questions |
+
+---
+
 ## 🛠️ The Tech Stack
 
 * **Orchestration:** LangGraph (Parallel DAG execution)
@@ -47,10 +80,10 @@ graph TD;
 
 Before running any evaluations, you must ingest the baseline data (e.g., the 'Think Python' manual) into your Qdrant vector database. If you skip this, the agent will throw a `404 Not Found` error.
 
-Run the baseline RAG script once to create the `portfolio_docs` collection:
+Run the one-time setup command to create the `portfolio_docs` collection and Supabase tables:
 
 ```bash
-poetry run python -m app.agent.baseline_rag
+task init-db
 ```
 
 
@@ -76,7 +109,7 @@ To test a change, open that file and modify the variables:
 Do not type questions one by one into the UI. Instead, run the automated integration test:
 
 ```bash
-poetry run python -m app.agent.judge_the_agent
+task evaluate
 ```
 
 ## 🖥️ The Grand Hall Telemetry Dashboard (UI)
@@ -85,18 +118,17 @@ While the batch runner is for automated testing, the **Grand Hall Dashboard** is
 
 ### How to Launch the UI
 
-1. Ensure your FastAPI server is running in one terminal:
+Run both servers at once with:
 
 ```bash
-poetry run uvicorn app.main:app --reload
+task run
 ```
 
-2. Open a second terminal, navigate to the frontend folder, and start the Vite development server:
+Or start them individually in separate terminals:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+task backend    # FastAPI server → localhost:8000
+task frontend   # Vue UI → localhost:5173
 ```
 
 3. Add an "Environment Variables" Section
