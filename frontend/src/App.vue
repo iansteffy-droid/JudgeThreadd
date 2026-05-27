@@ -10,8 +10,11 @@ const selectedProvider = ref('groq')
 const selectedModel = ref('llama-3.3-70b-versatile')
 const events = ref([])
 const isEvaluating = ref(false)
+const isBatchEvaluating = ref(false)
+const isIngesting = ref(false)
 const eventSource = ref(null)
 const runHistory = ref([])
+const datasetFile = ref(null)
 
 const fetchHistory = async () => {
   try {
@@ -25,29 +28,22 @@ const fetchHistory = async () => {
 
 onMounted(fetchHistory)
 
-const startEvaluation = () => {
-  if (!searchQuery.value) return;
-  
-  events.value = []
-  isEvaluating.value = true
-
+const openSseStream = (url) => {
   if (eventSource.value) eventSource.value.close()
-
-  const url = `http://127.0.0.1:8000/stream_telemetry?question=${encodeURIComponent(searchQuery.value)}&provider=${selectedProvider.value}&model=${encodeURIComponent(selectedModel.value)}`
   const { data, close } = useEventSource(url)
   eventSource.value = { close }
-
   import('vue').then(({ watch }) => {
     watch(data, (newData) => {
       if (newData) {
         try {
           const parsedEvent = JSON.parse(newData)
           events.value.push(parsedEvent)
-          
           if (parsedEvent.event === 'complete' || parsedEvent.event === 'error') {
             isEvaluating.value = false
+            isBatchEvaluating.value = false
+            isIngesting.value = false
             close()
-            setTimeout(fetchHistory, 500) 
+            setTimeout(fetchHistory, 500)
           }
         } catch (e) {
           console.error("Failed to parse event:", newData)
@@ -55,6 +51,51 @@ const startEvaluation = () => {
       }
     })
   })
+}
+
+const startEvaluation = () => {
+  if (!searchQuery.value) return
+  events.value = []
+  isEvaluating.value = true
+  const url = `http://127.0.0.1:8000/stream_telemetry?question=${encodeURIComponent(searchQuery.value)}&provider=${selectedProvider.value}&model=${encodeURIComponent(selectedModel.value)}`
+  openSseStream(url)
+}
+
+const startIngestion = (pdfKey) => {
+  events.value = []
+  isIngesting.value = true
+  const url = `http://127.0.0.1:8000/stream_ingest?pdf_key=${encodeURIComponent(pdfKey)}`
+  openSseStream(url)
+}
+
+const startDatasetEvaluation = async () => {
+  events.value = []
+  isBatchEvaluating.value = true
+
+  let url
+  if (datasetFile.value) {
+    try {
+      const form = new FormData()
+      form.append('file', datasetFile.value)
+      const res = await fetch('http://127.0.0.1:8000/upload_dataset', { method: 'POST', body: form })
+      if (!res.ok) {
+        const err = await res.json()
+        events.value.push({ event: 'error', message: `Upload failed: ${err.detail}` })
+        isBatchEvaluating.value = false
+        return
+      }
+      const { dataset_id } = await res.json()
+      url = `http://127.0.0.1:8000/stream_dataset_evaluation?use_default=false&dataset_id=${dataset_id}&provider=${selectedProvider.value}&model=${encodeURIComponent(selectedModel.value)}`
+    } catch (e) {
+      events.value.push({ event: 'error', message: `Upload error: ${e.message}` })
+      isBatchEvaluating.value = false
+      return
+    }
+  } else {
+    url = `http://127.0.0.1:8000/stream_dataset_evaluation?use_default=true&provider=${selectedProvider.value}&model=${encodeURIComponent(selectedModel.value)}`
+  }
+
+  openSseStream(url)
 }
 </script>
 
@@ -70,9 +111,14 @@ const startEvaluation = () => {
       v-model:selectedProvider="selectedProvider"
       v-model:selectedModel="selectedModel"
       :isEvaluating="isEvaluating"
+      :isBatchEvaluating="isBatchEvaluating"
+      :isIngesting="isIngesting"
       @startEvaluation="startEvaluation"
+      @startDatasetEvaluation="startDatasetEvaluation"
+      @startIngestion="startIngestion"
+      @update:datasetFile="datasetFile = $event"
     />
-    <TraceConsole :events="events" :isEvaluating="isEvaluating" />
+    <TraceConsole :events="events" :isEvaluating="isEvaluating || isBatchEvaluating" />
     <HistoryTable :runHistory="runHistory" />
   </div>
 </template>

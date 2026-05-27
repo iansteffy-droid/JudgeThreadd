@@ -5,7 +5,17 @@
       "Bash(Select-Object -First 20)",
       "Bash(Format-Table FullName)",
       "Bash(git rm *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(Get-ChildItem -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -s https://api.github.com/repos/karpathy/autoresearch/contents)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/karpathy/autoresearch/refs/heads/main/README.md\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/karpathy/autoresearch/refs/heads/main/pyproject.toml\")",
+      "Bash(curl -s https://api.github.com/repos/karpathy/autoresearch/contents/README.md)",
+      "Bash(curl -s https://api.github.com/repos/karpathy/autoresearch/contents/pyproject.toml)",
+      "Bash(git add *)"
     ]
   }
 }
