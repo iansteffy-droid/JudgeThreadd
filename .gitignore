@@ -2,5 +2,6 @@
 public/test-content/**
 frontend/node_modules
 data/evaluation_report.md
-app/agent/__pycache__
+data/reports/
+app/agent/__pycache__/
 app/__pycache__/
