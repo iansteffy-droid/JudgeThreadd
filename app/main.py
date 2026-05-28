@@ -2,6 +2,8 @@ import json
 import asyncio
 import os
 import uuid
+import re
+import glob as glob_module
 import psycopg
 from datetime import datetime
 from fastapi import FastAPI, Request, UploadFile, File, HTTPException
@@ -57,6 +59,38 @@ async def get_run_history():
         return await asyncio.to_thread(fetch_db)
     except Exception as e:
         return {"error": str(e)}
+
+@app.get("/reports")
+async def list_reports():
+    """Lists all evaluation_report_*.md files in data/reports/, newest first."""
+    pattern = os.path.join("data", "reports", "evaluation_report_*.md")
+    files = sorted(glob_module.glob(pattern), reverse=True)
+    results = []
+    for path in files:
+        filename = os.path.basename(path)
+        match = re.search(r"evaluation_report_(\d{8})_(\d{6})\.md$", filename)
+        if match:
+            d, t = match.group(1), match.group(2)
+            display = f"{d[:4]}-{d[4:6]}-{d[6:8]} {t[:2]}:{t[2:4]}:{t[4:6]}"
+        else:
+            display = filename
+        results.append({"filename": filename, "display": display})
+    return results
+
+
+@app.get("/reports/{filename}")
+async def get_report(filename: str):
+    """Returns the markdown content of a single report file."""
+    if not re.fullmatch(r"evaluation_report_\d{8}_\d{6}\.md", filename):
+        raise HTTPException(status_code=400, detail="Invalid filename.")
+    path = os.path.join("data", "reports", filename)
+    if not os.path.isfile(path):
+        raise HTTPException(status_code=404, detail="Report not found.")
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse(content)
+
 
 @app.post("/evaluate")
 async def evaluate_sync(request: QueryRequest):

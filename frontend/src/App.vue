@@ -13,20 +13,29 @@ const isEvaluating = ref(false)
 const isBatchEvaluating = ref(false)
 const isIngesting = ref(false)
 const eventSource = ref(null)
-const runHistory = ref([])
+const reports = ref([])
+const reportContent = ref(null)
 const datasetFile = ref(null)
 
-const fetchHistory = async () => {
+const fetchReports = async () => {
   try {
-    const res = await fetch('http://127.0.0.1:8000/history')
-    const data = await res.json()
-    if (!data.error) runHistory.value = data
+    const res = await fetch('http://127.0.0.1:8000/reports')
+    reports.value = await res.json()
   } catch (err) {
-    console.error("Failed to fetch history", err)
+    console.error("Failed to fetch reports", err)
   }
 }
 
-onMounted(fetchHistory)
+const openReport = async (filename) => {
+  try {
+    const res = await fetch(`http://127.0.0.1:8000/reports/${encodeURIComponent(filename)}`)
+    reportContent.value = await res.text()
+  } catch (err) {
+    console.error("Failed to load report", err)
+  }
+}
+
+onMounted(fetchReports)
 
 const openSseStream = (url) => {
   if (eventSource.value) eventSource.value.close()
@@ -43,7 +52,7 @@ const openSseStream = (url) => {
             isBatchEvaluating.value = false
             isIngesting.value = false
             close()
-            setTimeout(fetchHistory, 500)
+            fetchReports()
           }
         } catch (e) {
           console.error("Failed to parse event:", newData)
@@ -56,6 +65,7 @@ const openSseStream = (url) => {
 const startEvaluation = () => {
   if (!searchQuery.value) return
   events.value = []
+  reportContent.value = null
   isEvaluating.value = true
   const url = `http://127.0.0.1:8000/stream_telemetry?question=${encodeURIComponent(searchQuery.value)}&provider=${selectedProvider.value}&model=${encodeURIComponent(selectedModel.value)}`
   openSseStream(url)
@@ -63,6 +73,7 @@ const startEvaluation = () => {
 
 const startIngestion = (pdfKey) => {
   events.value = []
+  reportContent.value = null
   isIngesting.value = true
   const url = `http://127.0.0.1:8000/stream_ingest?pdf_key=${encodeURIComponent(pdfKey)}`
   openSseStream(url)
@@ -70,6 +81,7 @@ const startIngestion = (pdfKey) => {
 
 const startDatasetEvaluation = async () => {
   events.value = []
+  reportContent.value = null
   isBatchEvaluating.value = true
 
   let url
@@ -118,7 +130,7 @@ const startDatasetEvaluation = async () => {
       @startIngestion="startIngestion"
       @update:datasetFile="datasetFile = $event"
     />
-    <TraceConsole :events="events" :isEvaluating="isEvaluating || isBatchEvaluating" />
-    <HistoryTable :runHistory="runHistory" />
+    <TraceConsole :events="events" :isEvaluating="isEvaluating || isBatchEvaluating" :reportContent="reportContent" />
+    <HistoryTable :reports="reports" @openReport="openReport" />
   </div>
 </template>

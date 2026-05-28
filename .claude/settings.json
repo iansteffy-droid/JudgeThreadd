@@ -16,7 +16,8 @@
       "Bash(curl -s https://api.github.com/repos/karpathy/autoresearch/contents/README.md)",
       "Bash(curl -s https://api.github.com/repos/karpathy/autoresearch/contents/pyproject.toml)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(npm install *)"
     ]
   }
 }
