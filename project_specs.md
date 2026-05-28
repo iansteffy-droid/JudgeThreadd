@@ -41,7 +41,7 @@ A developer uploads a PDF as the knowledge base, asks questions against it, and 
 - History table refreshes
 
 ### 2. Batch Dataset Evaluation
-- User uploads a JSON test dataset (or uses `data/golden_dataset.json`)
+- User uploads Ground Truth Cases as a JSON file (or uses `data/golden_dataset.json`)
 - Backend loops through every test case
 - Each case: RAG generates answer → Council evaluates
 - Results streamed live + written to a timestamped markdown report in `data/reports/`
@@ -93,7 +93,7 @@ logprobs:    jsonb  # optional
 created_at:  timestamptz
 ```
 
-### golden_dataset.json schema
+### Ground Truth Cases Schema (`golden_dataset.json`)
 ```json
 [
   {
@@ -153,7 +153,7 @@ JudgeThreadd/
 │           ├── ModelSelector.vue  # Provider/model dropdown
 │           └── TestContentUploader.vue  # PDF ingestion UI
 ├── data/
-│   ├── golden_dataset.json        # Default test cases (10 Python questions)
+│   ├── golden_dataset.json        # Default Ground Truth Cases (Python questions + reference contexts)
 │   └── reports/                   # Timestamped batch evaluation reports
 ├── public/test-content/
 │   └── thinkpython.pdf            # Default knowledge base

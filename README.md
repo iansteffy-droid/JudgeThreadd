@@ -39,7 +39,7 @@ task run                  # opens backend (localhost:8000) + frontend (localhost
 | `task frontend` | Start just the Vue UI (`localhost:5173`) |
 | `task init-db` | One-time setup — creates Qdrant collection and Supabase tables |
 | `task generate-dataset` | Generate 20 test cases from the PDF using Gemini |
-| `task evaluate` | Run batch evaluation over the golden dataset |
+| `task evaluate` | Run batch evaluation over the Ground Truth Cases |
 | `task report` | Print analytics dashboard from the latest report |
 | `task test-rag` | Smoke-test the RAG pipeline with 3 sample questions |
 
@@ -91,7 +91,7 @@ task init-db
 
 To test an agent, you need a baseline of questions.
 
-* Open `data/golden_dataset.json` and observe the format of Python related questions.
+* Open `data/golden_dataset.json` and observe the format of Ground Truth Cases (Python questions with reference contexts).
 * Replace the contents with a JSON array of your own historical user queries and the expected ground-truth contexts.
 
 ### Step 2: Modify the "Brain" 

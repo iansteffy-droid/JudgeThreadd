@@ -18,34 +18,13 @@ function onFileChange(e) {
 
 <template>
   <div class="space-y-4 mb-8">
-    <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
-      <label class="block text-sm font-medium text-gray-300 mb-2">Subject Query</label>
-      <div class="flex gap-4 mb-4">
-        <input
-          :value="modelValue"
-          @input="$emit('update:modelValue', $event.target.value)"
-          @keyup.enter="$emit('startEvaluation')"
-          type="text"
-          class="flex-1 bg-gray-900 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-500"
-          placeholder="Enter a question to evaluate..."
-        />
-        <button
-          @click="$emit('startEvaluation')"
-          :disabled="anyEvaluating"
-          class="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-2 px-6 rounded transition-colors disabled:opacity-50"
-        >
-          {{ isEvaluating ? 'Evaluating...' : 'Dispatch Judges' }}
-        </button>
-      </div>
-    </div>
-
-    <TestContentUploader
+<TestContentUploader
       :isIngesting="isIngesting"
       @startIngestion="$emit('startIngestion', $event)"
     />
 
     <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
-      <label class="block text-sm font-medium text-gray-300 mb-2">Golden Dataset</label>
+      <label class="block text-sm font-medium text-gray-300 mb-2">Ground Truth Cases</label>
       <div class="flex gap-4 items-center">
         <label class="flex-1 flex items-center gap-3 bg-gray-900 border border-gray-600 rounded px-4 py-2 cursor-pointer hover:border-yellow-500 transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -71,7 +50,7 @@ function onFileChange(e) {
         @update:selectedModel="$emit('update:selectedModel', $event)"
       />
       <p class="mt-2 text-xs text-gray-500">
-        Upload a JSON file matching the golden dataset schema, or leave blank to use the default <span class="text-gray-400">golden_dataset.json</span>.
+        Upload a JSON file matching the Ground Truth Cases schema, or leave blank to use the default <span class="text-gray-400">golden_dataset.json</span>.
       </p>
     </div>
   </div>

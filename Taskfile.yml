@@ -35,7 +35,7 @@ tasks:
       - poetry run python -m app.agent.generate_dataset
 
   evaluate:
-    desc: Run batch evaluation over the golden dataset
+    desc: Run batch evaluation over the Ground Truth Cases
     cmds:
       - poetry run python -m app.agent.judge_the_agent
 

@@ -9,7 +9,7 @@ const activeContentName = ref('thinkpython.pdf')
 const isUploading = ref(false)
 const uploadError = ref('')
 
-const selectedFileName = computed(() => selectedFile.value?.name ?? 'No file selected')
+const selectedFileName = computed(() => selectedFile.value?.name ?? 'Select a PDF to replace')
 const busy = computed(() => props.isIngesting || isUploading.value)
 
 watch(() => props.isIngesting, (ingesting, wasIngesting) => {
@@ -55,7 +55,7 @@ async function ingestContent() {
 <template>
   <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 shadow-xl">
     <div class="flex items-center justify-between mb-3">
-      <label class="block text-sm font-medium text-gray-300">Test Content</label>
+      <label class="block text-sm font-medium text-gray-300">Knowledge Source</label>
       <span class="text-xs text-gray-400 bg-gray-900 border border-gray-700 rounded px-2 py-1">
         Active: <span class="text-yellow-400 font-medium">{{ activeContentName }}</span>
       </span>
@@ -78,13 +78,13 @@ async function ingestContent() {
         :disabled="busy"
         class="bg-yellow-600 hover:bg-yellow-500 text-black font-bold py-2 px-6 rounded transition-colors disabled:opacity-50 whitespace-nowrap"
       >
-        {{ isIngesting ? 'Ingesting...' : isUploading ? 'Uploading...' : 'Ingest Content' }}
+        {{ isIngesting ? 'Ingesting...' : isUploading ? 'Uploading...' : 'Ingest' }}
       </button>
     </div>
 
     <p v-if="uploadError" class="mt-2 text-xs text-red-400">{{ uploadError }}</p>
     <p v-else class="mt-2 text-xs text-gray-500">
-      Upload a PDF to replace the active test content. Ingestion re-indexes the document in Qdrant Cloud.
+      Upload a PDF to replace the active knowledge source. Ingestion re-indexes the document in Qdrant Cloud.
     </p>
   </div>
 </template>
